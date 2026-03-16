@@ -1,0 +1,228 @@
+%================================================================%
+%   DRAFT: Section 3 — Copula Generated Random Graphs            %
+%                       for Real-Valued Networks                 %
+%                                                                %
+%   Insert between the binary CGRG section and the brain        %
+%   application section in CGRG_brain.tex                       %
+%================================================================%
+
+\section{Copula Generated Random Graphs for Real-Valued Networks}
+\label{sec:realvalued}
+
+Many networks arising in the natural and social sciences carry real-valued
+edge weights.  Regulatory strength between brain regions, trade volumes
+between countries, and communication frequencies between colleagues are
+all examples.  This section develops a Copula Generated Random Graph
+model for directed networks with real-valued edges, generalising the
+binary case of Section~\ref{sec:binary}.
+
+\subsection{Model Specification}
+
+Let $G$ be a directed network on $N$ nodes with edge weight matrix
+$A \in \mathbb{R}^{N \times N}$.  Following the block-separable construction
+of Section~\ref{sec:cgrg}, we partition the off-diagonal edges
+into $M$ groups such that edges belonging to different groups are
+conditionally independent.  In what follows we take the natural partition
+into dyads, so $M = N(N-1)/2$ and each group contains the two directed
+edges $A_{ij}$ and $A_{ji}$ connecting the same pair of nodes.  Under this
+partition, the log-likelihood of the network decomposes as
+%
+\begin{align}
+\label{eq:real_loglik}
+\log p(A \mid \theta, \rho)
+  = \sum_{i=1}^{N} \log p(A_{ii} \mid \theta)
+  + \sum_{i=1}^{N-1} \sum_{j > i}
+    \log p(A_{ij}, A_{ji} \mid \theta, \rho),
+\end{align}
+%
+where $\theta$ collects the marginal parameters and $\rho$ is the copula
+dependence parameter.
+
+\subsection{Marginal Distributions}
+
+The marginal distribution of each off-diagonal edge $A_{ij}$, $i \neq j$,
+is specified as
+%
+\begin{align}
+\label{eq:marginal}
+A_{ij} \mid \delta_i, \gamma_j, \lambda
+  \;\sim\; \mathcal{N}\!\left(\delta_i + \gamma_j,\; \lambda^{-1}\right),
+\end{align}
+%
+where $\delta_i$ is a \emph{sender effect} for node $i$, measuring the
+tendency of node $i$ to exert influence on other nodes, $\gamma_j$ is a
+\emph{receiver effect} for node $j$, measuring the tendency of node $j$ to
+be influenced by other nodes, and $\lambda > 0$ is a precision parameter
+shared across all edges in the network.  The mean structure $\delta_i +
+\gamma_j$ is a standard sender-receiver additive model \citep{hoff2005}.
+
+\paragraph{Identifiability.}
+The sender and receiver effects are not separately identified from the
+overall level of $A$ without a constraint.  We fix $\delta_1 = 0$,
+so that all sender effects are interpreted relative to node~$1$.  With
+this normalisation, $\gamma_j$ measures the unconditional mean weight of
+edges directed into node $j$, and $\delta_i$ for $i \geq 2$ measures
+the excess sending tendency of node $i$ relative to the reference node.
+
+\subsection{Frank Copula Density for a Dyad}
+
+By Sklar's theorem \citep{sklar1959}, the joint distribution of the two
+edges $A_{ij}$ and $A_{ji}$ can be expressed via a copula $C_\rho$
+binding their marginal CDFs $F_{ij}$ and $F_{ji}$:
+%
+\begin{align}
+p(A_{ij}, A_{ji} \mid \theta, \rho)
+  = c_\rho\!\left(F_{ij}(A_{ij}), F_{ji}(A_{ji})\right)
+    \cdot f_{ij}(A_{ij}) \cdot f_{ji}(A_{ji}),
+\end{align}
+%
+where $c_\rho(u,v) = \partial^2 C_\rho(u,v) / \partial u\, \partial v$
+is the copula density.  We choose the bivariate \emph{Frank copula}
+%
+\begin{align}
+\label{eq:frank_cdf}
+C_\rho(u,v)
+  = -\frac{1}{\rho}
+    \log\!\left[1 + \frac{(e^{-\rho u}-1)(e^{-\rho v}-1)}{e^{-\rho}-1}\right],
+\qquad \rho \in \mathbb{R} \setminus \{0\},
+\end{align}
+%
+whose density is
+%
+\begin{align}
+\label{eq:frank_density}
+c_\rho(u,v)
+  = \frac{\rho(1 - e^{-\rho})\, e^{-\rho(u+v)}}
+         {\left[1 - e^{-\rho} - (1-e^{-\rho u})(1-e^{-\rho v})\right]^2}.
+\end{align}
+%
+With Gaussian marginals $F_{ij}(a) = \Phi\!\left((a - \delta_i - \gamma_j)
+\sqrt{\lambda}\right)$, the joint log-likelihood contribution of dyad $ij$
+is
+%
+\begin{align}
+\label{eq:dyad_loglik}
+\log p(A_{ij}, A_{ji} \mid \theta, \rho)
+  &= \log c_\rho\!\left(\Phi(z_{ij}),\, \Phi(z_{ji})\right)
+  + \log \phi(z_{ij}) + \tfrac{1}{2}\log\lambda  \nonumber\\
+  &\quad + \log\phi(z_{ji}) + \tfrac{1}{2}\log\lambda,
+\end{align}
+%
+where $z_{ij} = (A_{ij} - \delta_i - \gamma_j)\sqrt{\lambda}$,
+$\phi$ denotes the standard normal density, and the copula density is
+evaluated at the probability-integral-transformed edge values.
+
+\paragraph{The role of $\rho$.}
+The Frank copula dependence parameter $\rho \in \mathbb{R}\setminus\{0\}$
+controls the degree and direction of \emph{reciprocity} in the network.
+When $\rho > 0$, edge weights $A_{ij}$ and $A_{ji}$ are positively
+associated: a node that sends a strong signal to its partner tends to
+receive a strong signal in return.  When $\rho < 0$, the association is
+negative: strong outgoing edges tend to coincide with weak incoming edges,
+implying a hierarchical or asymmetric regulatory structure.  As
+$\rho \to 0$, the two directed edges become independent.  This bidirectional
+interpretability distinguishes the Frank copula from, e.g., the
+Gaussian copula, while retaining a closed-form density and straightforward
+computation.
+
+\subsection{Full Likelihood}
+
+Combining Equations~\eqref{eq:real_loglik}
+and~\eqref{eq:dyad_loglik}, the log-likelihood for a single
+network $A$ is
+%
+\begin{align}
+\label{eq:full_loglik}
+\log p(A \mid \theta, \rho)
+  &= \sum_{i=1}^{N} \log p(A_{ii} \mid \theta) \nonumber \\
+  &\quad+
+    \sum_{i=1}^{N-1}\sum_{j>i}
+    \Bigl[
+      \log c_\rho\!\left(\Phi(z_{ij}),\Phi(z_{ji})\right)
+      + \log\phi(z_{ij}) + \log\phi(z_{ji}) + \log\lambda
+    \Bigr].
+\end{align}
+%
+When $S$ independent network replicates $A^{(1)},\ldots,A^{(S)}$ are
+observed, the log-likelihood is the sum of~\eqref{eq:full_loglik} over
+replicates.
+
+\subsection{Bayesian Inference via Markov Chain Monte Carlo}
+
+We adopt a Bayesian framework.  The hierarchical prior specification is:
+%
+\begin{align}
+\delta_0, \gamma_0 &\;\sim\; \mathcal{N}(0, 4),
+  \label{eq:prior_hyper} \\
+\rho_0 &\;\sim\; \mathcal{N}(0, 4), \\
+\delta_i \mid \delta_0, \sigma_\delta
+  &\;\sim\; \mathcal{N}(\delta_0, \sigma_\delta^2),
+  \quad i = 2,\ldots,N, \\
+\gamma_j \mid \gamma_0, \sigma_\gamma
+  &\;\sim\; \mathcal{N}(\gamma_0, \sigma_\gamma^2),
+  \quad j = 1,\ldots,N, \\
+\rho \mid \rho_0, \sigma_\rho
+  &\;\sim\; \mathcal{N}(\rho_0, \sigma_\rho^2), \\
+\lambda &\;\sim\; \mathrm{Gamma}(5,\, 4), \\
+\sigma_\rho, \sigma_\delta, \sigma_\gamma
+  &\;\sim\; \mathrm{Gamma}(0.1,\, 10).
+  \label{eq:prior_sigma}
+\end{align}
+%
+The hyper-mean parameters $(\delta_0, \gamma_0, \rho_0)$ share
+information across nodes and groups respectively, while the
+hyper-variance parameters $(\sigma_\delta, \sigma_\gamma, \sigma_\rho)$
+control the degree of shrinkage.  The Gamma prior on $\lambda$
+concentrates mass on precisions consistent with unit-order edge weights,
+while the weakly-informative Gamma priors on the variance hyperparameters
+allow the data to determine the extent of pooling.
+
+Posterior samples are drawn using a componentwise
+Metropolis--Hastings algorithm in which each parameter is updated in
+turn using a symmetric uniform proposal.  The posterior is
+%
+\begin{align}
+p(\theta, \rho \mid A^{(1)},\ldots,A^{(S)})
+  \;\propto\;
+  \left[\prod_{s=1}^{S} p(A^{(s)} \mid \theta, \rho)\right]
+  p(\theta, \rho),
+\end{align}
+%
+where $p(\theta,\rho)$ is the joint prior implied by
+Equations~\eqref{eq:prior_hyper}--\eqref{eq:prior_sigma}.
+The MCMC sampler cycles through $\rho$, $\{\delta_i\}$,
+$\{\gamma_j\}$, $\lambda$, and the hyperparameters in sequence,
+evaluating the log posterior via~\eqref{eq:full_loglik} at each
+step.  We discard an initial burn-in and thin the chain to obtain
+approximately independent draws for posterior summary.
+
+\subsection{Relationship to the Multivariate Normal Model}
+
+A natural comparison model treats the collection of $N(N-1)$ off-diagonal
+edge weights for each network as a multivariate normal vector with an
+unstructured covariance matrix.  While flexible, this model has
+$O(N^4)$ covariance parameters, which is difficult to estimate with
+typical sample sizes, and offers little structural interpretability.
+The CGRG model achieves parsimony by restricting dependence to
+within-dyad pairs — reducing the dependence structure to a single
+scalar $\rho$ — while preserving the interpretable sender/receiver
+decomposition of the mean.  Specifically, under the CGRG model
+the marginal covariance between $A_{ij}$ and $A_{ji}$ is determined
+entirely by $\rho$ through the Frank copula, whereas all pairs of edges
+from different dyads are modeled as independent given the node effects.
+The KL divergence between the CGRG density and the bivariate normal
+density for a single dyad quantifies the misspecification incurred
+when using the multivariate normal in place of the copula model;
+this comparison is developed in Section~\ref{sec:compare}.
+
+% ---------------------------------------------------------------- %
+%  NOTES FOR REVISION:                                             %
+%   - Add citation to Hoff (2005) for sender/receiver model       %
+%   - Add citation to Sklar (1959) / Nelsen (2006) for copulas    %
+%   - Add citation to Joe (1997) for Frank copula properties      %
+%   - Consider adding a remark about vine copula extension        %
+%     (see Czado 2025, CSDA) for more than pairwise dependence    %
+%   - The Feng & Leng (Biometrika 2025) paper establishes         %
+%     consistency/asymptotics for a related directed network model %
+%     with sender/receiver + reciprocity -- worth citing          %
+% ---------------------------------------------------------------- %

@@ -1,0 +1,32 @@
+\documentclass{article}
+\usepackage[a4paper, total={6in, 8in}]{geometry}
+\usepackage{amssymb}
+\usepackage{amsmath}
+\usepackage{enumerate}
+\usepackage{color}
+\usepackage{tikz,}
+\usetikzlibrary{arrows,%
+                petri,%
+                topaths,
+                positioning,
+                calc,
+                chains,
+                fit,
+                shapes,external,matrix,snakes,backgrounds,folding,calendar}%
+
+
+
+\begin{document}
+\title{Alzheimer's Detection with Copula Generated Random Graphs\\}
+\author{Jiguo Cao and Aaron Danielson\\}
+\date{\today}
+\maketitle
+Detection and prediction of Alzheimer's disease is notoriously difficult.  The diagnosis are often made by the observation of patient symptoms which vary across individual.  Demographic information such as a patient's age, years of education, gender and handedness is only marginally better than prediction based upon the empirical distribution.  Network information derived from fMRI studies augments the data available to classify disease states.  This paper offers a novel method to estimate interpretable structure in brain networks.  The structure discovered by the probability distribution can be used to classify whether a brain is diseased or not.
+\\ \\
+We model a four node brain network as a Copula Generated Random Graph (CGRG).  These are probability distributions for networks with real-valued edges.  (Need to explain exactly what the edge values represent).  The edges are modeled are normally distributed random variables with sender and receiver terms.  The sender term measures the degree to which one node regulates or inhibits other node in the brain while the receiver term measures the degree to which that node is regulated or inhibited by other nodes.  The marginal distribution over the directed edges are bound together with a Frank Copula.  This copula has a dependence parameter defined on the real line (except at zero) implying that the model can estimate negative and positive reciprocity in the network. 
+\\ \\
+We find the brains of individuals diagnosed with Alzheimer's exhibit higher degrees of reciprocity than the brains of healthy individuals.  This result accords with entropic theories of the brain (add reference here).  Under this theoretical model, patterns of neural regulation are highly ordered and hierarchical.  Our contribution suggests an association between the decreased levels of order and Alzheimer's disease.  Moreover, the inclusion of the structural terms dramatically increases one's ability to detect Alzheimer's without observation of patient symptoms.  (add some specific numbers)
+\\ \\
+Future work will compare these findings to a model using the matrix valued normal distribution (add reference).  Like the Copula Generated Random Graph, this probability distribution can estimate interpretable structural parameters that can be used to improve detection of degenerative diseases like Alzheimer's.  We will also use the structural parameters learned by these models to predict the onset of Alzheimer's disease.
+
+\end{document}

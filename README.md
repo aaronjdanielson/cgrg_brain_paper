@@ -2,13 +2,15 @@
 
 Replication code for:
 
-> Cao, J. and Danielson, A.J. (2025). *Block-Separable Copula Generated Random
+> Cao, J. and Danielson, A.J. (2026). *Block-Separable Copula Generated Random
 > Graphs for Directed Networks.* Working paper.
 
 The model captures dyadic reciprocity in replicated directed networks using a
 Frank copula with additive sender/receiver effects. It is applied to effective
 connectivity networks in the default mode network (DMN) from resting-state fMRI
 across 112 participants (NL / MCI / AD).
+
+![Copula comparison at matched Kendall's τ ≈ −0.43: Frank (left), Gaussian (center), 90°-rotated Clayton (right). Top row: density contours; bottom row: 500 simulated pairs.](paper/CopulaComparison.png)
 
 ---
 

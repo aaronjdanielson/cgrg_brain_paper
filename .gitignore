@@ -1,0 +1,19 @@
+# Archived / superseded artifacts
+archive/
+
+# MCMC output (large; regenerate with run_brain_model_nuts.py)
+output_python_plots/
+output_nuts/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

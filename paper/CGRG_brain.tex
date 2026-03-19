@@ -1,13 +1,26 @@
-\documentclass [12pt]{article}
+\documentclass[12pt]{article}
+\usepackage[margin=1in]{geometry}
 \usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
 \usepackage{color}
-\usepackage{epstopdf}
 \usepackage{graphicx}
-\usepackage{pgfpages}
-\usepackage{media9}
-\setlength{\textwidth}{165mm} \setlength{\oddsidemargin}{0.0mm}
-\setlength{\evensidemargin}{0.0mm}
-\renewcommand \baselinestretch{1.2}
+\usepackage{epstopdf}
+\usepackage[numbers,sort&compress]{natbib}
+\usepackage{mathtools}
+\usepackage{setspace}
+\usepackage{lineno}
+\usepackage{microtype}
+\usepackage{booktabs}
+\usepackage[hidelinks]{hyperref}
+
+\doublespacing
+\linenumbers
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{corollary}{Corollary}[theorem]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{remark}{Remark}[section]
 
 
 
@@ -20,16 +33,47 @@
 
 
 \begin{abstract}
-\noindent 
-Many methods exists to model networks.  In order to recreate complex patterns, methods like stochastic block models assign nodes to communities and estimate the probability of a tie within and between members of the groups.  Other methods, such as exponential random graph models (ERGMs), model the dependence explicitly via a vector of sufficient statistics.  This paper introduces a new class of network models we call copula generated random graphs (CGRGs) that borrows from both traditions.  After specifying the general model, we apply the model to two networks from different domains.  A real-valued network representing regulation in the brain's default mode network is modeled as a copula generated random graph.  The flexible structure allows for the model to account for differences between units belonging to different disease states.  As such, the model parameters can be used to describe differences in brain networks across these groups.  In the second application, a binary social network with missing edges is analyzed.
+\noindent
+We propose a model for directed, real-valued networks in which the dependence
+between the two directed edges within each dyad is captured by a one-parameter
+Frank copula selected on the basis of empirical dependence structure and
+predictive likelihood, while the marginal mean of each edge is decomposed into
+additive sender and receiver effects.  The model is closed-form, tractable under componentwise
+Metropolis--Hastings sampling, and designed for replicated networks (multiple
+networks observed on a common node set, each belonging to one of $G$ comparison
+groups).
+
+We derive several theoretical properties that clarify the interpretation and
+estimability of the dyadic reciprocity parameter.  The copula parameter $\rho$
+admits a closed-form, margin-invariant interpretation as a monotone function of
+Kendall's $\tau$ via the Debye function.  Under a standard normalisation of the
+sender effects, the full parameter vector is identifiable whenever $N \geq 3$.
+With fixed $N$ and growing number of replicated networks $S$, the MLE of $\rho$
+is $\sqrt{S}$-consistent and asymptotically normal under a simplified model
+serving as a parametric benchmark.
+
+The model is applied to effective connectivity networks in the default mode
+network from resting-state fMRI for 112 participants across three diagnostic
+groups: Alzheimer's disease, mild cognitive impairment, and cognitively normal.
+Posterior estimates of $\rho$ are strongly negative for all three groups
+($\rho^{(g)} \approx -3.7$ to $-3.8$, 95\% credible intervals well below zero),
+indicating that within each dyad, the two directed edges are negatively
+associated: participants with a stronger effective connection $A_{ij}$ tend to
+have a weaker reverse connection $A_{ji}$, consistent with a hierarchical
+regulation structure in the DMN.  The three groups have nearly identical
+posterior distributions for $\rho$; the posterior probability of the strict
+ordering $\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} < \rho^{(\mathrm{AD})}$
+is $0.20$, close to the uniform chance level of $1/6$.
 \end{abstract}
 
-\smallskip \noindent {\bf Keywords:} 
+\smallskip \noindent {\bf Keywords:}
 Copulas,
-Network modelling,
-Social Networks, 
-Brain Networks,
-Bayesian modelling.
+Directed networks,
+Reciprocity,
+Brain connectivity,
+Replicated networks,
+Alzheimer's disease,
+Bayesian inference.
 
 \newpage
 
@@ -37,354 +81,1002 @@ Bayesian modelling.
 
 \section{Introduction}
 
-This paper introduces a class of network models with patterns of dependence modeled by copulas.  We assume the marginal distribution of an edge is known.  Given a dependence matrix, the edges are bound together via a copula.  Copula generated random graphs (CGRG) provide a flexible framework for network modeling.  Computation is straightforward compared to other methods.  And, a common framework exists for models of all types such as binary, count, and real-valued ties.  The framework's flexibility is demonstrated in two applications.
+Directed weighted networks, in which each ordered pair of nodes carries a
+real-valued edge weight, arise in neuroscience, economics, and the social
+sciences.  In neuroscience, dynamic causal modelling (DCM; \citealp{friston2003,
+friston2014}) converts resting-state fMRI time series into an $N \times N$
+matrix of effective connectivity strengths, one matrix per participant.  The
+analyst then faces the problem of comparing the distributional properties of
+these connectivity matrices across diagnostic groups, such as Alzheimer's disease (AD),
+mild cognitive impairment (MCI), and cognitively normal (NL) individuals
+\citep{nie2020, huang2022, monash2024}.
 
-The first application applies a CGRG to binary network data in the presence of missing data.  We choose a partition for the set of nodes to create communities.  The ties within communities are modeled with a copula function thereby inducing dependence between edges in the same community.  The missing portion of the adjacency matrix depends on the observed portion of the adjacency matrix.  We impute  dyads in which one edge is missing and the other is observed.  We fit a different response rate for each partition.
+A natural feature of such networks is \emph{reciprocity}: the extent to which
+a strong directed edge $A_{ij}$ tends to co-occur with a strong (or weak)
+reverse edge $A_{ji}$.  Existing frameworks handle reciprocity in several
+ways.  The $p_1$ model \citep{holland81} and its extensions parametrize
+reciprocity via an explicit differential parameter.  The additive and
+multiplicative effects (AME) model \citep{hoff2005} captures reciprocity
+implicitly through multiplicative latent factors.  The recent model of
+\citet{fengleng2025} establishes consistency results for a directed network
+model with explicit sender/receiver effects and a reciprocity term.  For
+real-valued edges specifically, \citet{zhang2020} develop a mixed-effects
+time-varying network model, and \citet{leekimbrain2019} apply copula-based
+directional dependence to whole-brain connectivity from fMRI.
 
-The second application applies a CGRG to an effective connectivity network in default mode network of the human brain.  In this example, many real-valued networks are observed.  The patient associated with each network belongs to one of three disease groups.  We develop a real-valued CGRG model in which the dependence between nodes in the default mode network varies by the group to which a patient belongs.
+Unlike most network models that study a single large network growing in its
+number of nodes, our setting consists of many replicated networks on a small
+fixed node set.  This regime arises naturally in neuroscience, where each
+participant contributes one network over a fixed set of brain regions, and
+motivates an asymptotic theory in which the number of replicates $S$ grows
+while $N$ is fixed.
 
-The remainder of the paper is as follows.  Section \ref{sec:cgrg} introduces a general model for network data.  Section \ref{sec:binary} develops a model for binary-valued network data in the presence of missing data.  Then in Section \ref{sec:binary_app} the technique is applied to network data.  Section \ref{sec:cgrg_brain} develops a real-valued model for the default mode network in the human brain.  Section \ref{sec:brain_app} presents analysis of a set of brain networks of effective connectivity derived from fMRI data.  Section \ref{sec:discuss} connections to other network models and concludes.  
+This paper proposes a model for \emph{replicated} directed real-valued
+networks that makes reciprocity both structurally explicit and statistically
+interpretable.  The key idea is to model the two directed edges of each
+\emph{dyad} (the unordered pair $\{i,j\}$) jointly via a bivariate Frank
+copula, while specifying the marginal distribution of each edge through
+additive sender and receiver node effects.  Because dyads are treated as
+conditionally independent of one another, the joint likelihood factorises
+over dyads, and the Frank copula parameter $\rho$ becomes the sole driver of
+within-dyad dependence.  We call this model a \emph{Copula Generated Random
+Graph} (CGRG).
 
-%Then the effective connectivity of the human default mode network is modeled as a CGRG with real-valued edges.   
-  
-%Many methods exist to model static networks with binary-valued edges.  These approaches make various assumptions about the dependence relations regarding the presence or absence of edges.  These approaches can be extended to count-valued and signed edges.  This paper presents a model for networks with real-valued edges.  We present a model in which the all possible edges are present and then extend the model to the case in which some edges are absent.  The model is applied to a real-valued network derived from resting state fMRI data.
+Our contributions are:
+\begin{enumerate}
+\item A parsimonious model for directed real-valued networks combining an
+  interpretable additive mean structure with a single reciprocity parameter
+  (Section~\ref{sec:realvalued}).
+\item A Bayesian hierarchical extension that pools information across $G$
+  comparison groups through shared hyperparameters on the sender effects,
+  receiver effects, and reciprocity parameters
+  (Section~\ref{sec:cgrg_brain}).
+\item Several theoretical results (Section~\ref{sec:theory}): a closed-form,
+  margin-invariant Kendall's $\tau$ formula, identifiability for $N \geq 3$,
+  and a parametric benchmark establishing $\sqrt{S}$-consistency of the MLE
+  under fixed $N$ and growing replicates $S$.  (Appendix~\ref{sec:appendix_entropy}
+  provides an entropy decomposition that further clarifies the role of $\rho$
+  but is not needed for the empirical results.)
+\item An application to $N = 4$ default mode network connectivity matrices
+  from 112 fMRI participants across AD, MCI, and NL groups
+  (Section~\ref{sec:brain_app}).  The model recovers strongly negative
+  reciprocity ($\rho \approx -3.75$, Kendall's $\tau \approx -0.43$) for
+  all three groups with 95\% credible intervals entirely below zero,
+  indicating a hierarchical (non-reciprocal) regulatory structure in the
+  DMN that is consistent across disease states.  Posterior predictive checks
+  confirm that the model reproduces the observed dyadic Kendall's $\tau$
+  pattern.
+\end{enumerate}
 
-\section{Copula Generated Random Graphs}
+Section~\ref{sec:cgrg} introduces the dyad-separable framework.
+Section~\ref{sec:realvalued} specifies the Gaussian-marginal Frank-copula
+model.  Section~\ref{sec:theory} contains the core theoretical results
+(Kendall's $\tau$, identifiability, and asymptotic consistency).
+Section~\ref{sec:cgrg_brain} develops the hierarchical multi-group model
+for brain networks.  Section~\ref{sec:compare} compares the CGRG to a
+multivariate normal baseline.  Section~\ref{sec:sim} presents simulation
+evidence on parameter recovery, including a null-signal scenario.
+Section~\ref{sec:brain_app} contains the brain application.
+Section~\ref{sec:discuss} discusses extensions and concludes.
+Appendix~\ref{sec:appendix_entropy} contains the entropy decomposition;
+Appendix~\ref{sec:appendix_plots} contains posterior density plots for node
+effects.
+
+\section{Dyad-Separable Copula Generated Random Graphs}
 \label{sec:cgrg}
-A network $G$ is defined as a set of vertices or nodes $\mathcal{V}$ and a set of edges $\mathcal{E}$ connecting the nodes in $\mathcal{V}$.  Typically the edges of a network exhibit patterns of dependence.  Suppose we can partition the set of potential arcs into $M$ groups, $\mathcal{E}_1,\ldots,\mathcal{E}_M$, such that $y_{ij}$ and $y_{kl}$ are independent if $(i,j)\in\mathcal{E}_m$ and $(k,l)\in\mathcal{E}_{m'}$ for $m\neq m'$.  Within groups, the values of arcs depend on one another, but between groups, the values of arcs are independent.  When this holds, a copula can be used to model dependence between the arcs in each element of the partition.  Let $\boldsymbol{\theta}$ be a $M\times K$ matrix of parameters associated with the marginal distributions of the edges and let $\boldsymbol{\rho}$ be a vector of dependence parameters of length $M$.  Then the probability mass function of the community-separable model is
+
+Let $G$ be a directed network on $N$ nodes with adjacency matrix $A$.  The
+key structural assumption of a copula generated random graph is that the
+$N(N-1)/2$ \emph{dyads} (unordered pairs $\{i,j\}$, each comprising the
+two directed edges $A_{ij}$ and $A_{ji}$) are conditionally independent of
+one another.  Within each dyad, the joint distribution of $(A_{ij}, A_{ji})$
+is specified via a copula binding their marginal CDFs.  Formally, for any
+$\{i,j\}$ and $\{k,l\}$ with $\{i,j\} \neq \{k,l\}$,
+
+\[
+(A_{ij}, A_{ji}) \perp (A_{kl}, A_{lk}) \mid \theta, \rho,
+\]
+
+so the log-likelihood factorises as
+\begin{equation}
+\label{eq:factor}
+\log p(A \mid \theta, \rho)
+  = \sum_{i=1}^{N}\log p(A_{ii} \mid \theta)
+  + \sum_{i < j} \log p(A_{ij}, A_{ji} \mid \theta, \rho).
+\end{equation}
+
+This dyadic separability plays the same structural role that block-diagonal
+dependence plays in stochastic block models: it makes inference tractable and
+gives each marginal and copula parameter a direct interpretation.  The
+parameter $\rho$ governs \emph{reciprocity}, the tendency of $A_{ij}$ and
+$A_{ji}$ to be concordant or discordant, and is common to all dyads within
+a group.
+
+The assumption restricts dependence to occur only within unordered pairs of
+nodes.  It excludes higher-order dependencies such as transitivity, triadic
+closure, or correlated sender and receiver effects across distinct dyads.
+The dyadic independence assumption is not intended to capture all forms of
+network dependence; rather, it isolates reciprocity as the dominant
+dependence mechanism while keeping inference tractable in replicated-network
+settings.
+The assumption is deliberate: it yields a likelihood that factorises over
+dyads, reducing computation to a sum over $N(N-1)/2$ independent terms and
+isolating reciprocity as the primary dependence mechanism.  In the
+replicated-network regime with small fixed $N$ (the setting of the brain
+application in Section~\ref{sec:cgrg_brain}), dyadic separability provides
+a parsimonious alternative to
+high-dimensional covariance models that become inestimable when the number of
+replicates is modest relative to $N^4$.
+
+%================================================================%
+%  Binary CGRG (saved for companion paper)                       %
+%================================================================%
+% \subsection{Binary-Valued Copula Generated Random Graphs}
+% \label{sec:binary}
+%
+% [Binary missing-data application deferred to a companion paper.
+%  The copula pmf for discrete marginals requires the careful
+%  treatment of non-uniqueness described in Genest et al. (2013).]
+%
+
+
+%================================================================%
+%  Section 3: Real-Valued CGRG                                   %
+%================================================================%
+\section{A Dyadic Copula Model for Real-Valued Networks}
+\label{sec:realvalued}
+
+Many networks arising in the natural and social sciences carry real-valued
+edge weights.  Regulatory strength between brain regions, trade volumes
+between countries, and communication frequencies between colleagues are
+all examples.  This section develops a CGRG model for directed networks
+with real-valued edges within the dyad-separable framework of
+Section~\ref{sec:cgrg}.
+
+\subsection{Model Specification}
+
+Let $G$ be a directed network on $N$ nodes with edge weight matrix
+$A \in \mathbb{R}^{N \times N}$.  Following the block-separable construction
+of Section~\ref{sec:cgrg}, we partition the off-diagonal edges into $M$
+groups such that edges belonging to different groups are conditionally
+independent.  We take the dyadic partition, so $M = N(N-1)/2$ and each
+group contains the two directed edges $A_{ij}$ and $A_{ji}$ connecting the
+same pair of nodes.  Under this partition the log-likelihood decomposes as
 \begin{align}
-p(Y\vert \mathbf{\theta},\mathbf{\rho}) = \prod_{m=1}^M p(Y_m \vert \theta_m,\rho_m).
+\label{eq:real_loglik}
+\log p(A \mid \theta, \rho)
+  = \sum_{i=1}^{N} \log p(A_{ii} \mid \theta)
+  + \sum_{i=1}^{N-1} \sum_{j > i}
+    \log p(A_{ij}, A_{ji} \mid \theta, \rho).
 \end{align}
-If the relational variables are real-valued, then each of the $M$ components is
+
+\subsection{Marginal Distributions and Identifiability}
+
+The marginal distribution of each off-diagonal edge is
 \begin{align}
- p(Y_m \vert \theta_m,\rho_m) = \frac{\partial}{\partial Y_{m_1}} \dots \frac{\partial}{\partial Y_{m_n}}C_{\rho_m}(Y_{m_1},\ldots,Y_{m_n}).
+\label{eq:marginal_rv}
+A_{ij} \mid \delta_i, \gamma_j, \lambda
+  \;\sim\; \mathcal{N}\!\left(\delta_i + \gamma_j,\; \lambda^{-1}\right),
 \end{align}
-Otherwise, this function must be determined in another way.  This is explained for the case of binary relational variables in Section \ref{sec:}.  The dependency matrix for this class of models has a block format as shown in Figure \ref{fig:}.  
-\\ \\
-If the network is not block separable, then there is dependence between arcs belonging to different communities.  Then the cumulative distribution function for a real-valued network can be expressed as a $M$ variate copula
+where $\delta_i$ is a \emph{sender effect} measuring node $i$'s tendency
+to exert influence, $\gamma_j$ is a \emph{receiver effect} measuring
+node $j$'s tendency to be influenced, and $\lambda > 0$ is a precision
+parameter shared across edges \citep{hoff2005}.
+
+The additive mean structure $\delta_i + \gamma_j$ is not identified without
+a constraint.  We set $\delta_1 = 0$, so all sender effects are interpreted
+relative to node~1.  Under this normalisation, $\gamma_j$ equals the
+expected weight of edges directed into node $j$ from node~1, and $\delta_i$
+measures the excess sending tendency of node $i \geq 2$ relative to the
+reference.
+
+\subsection{Frank Copula Density for a Dyad}
+
+By Sklar's theorem \citep{sklar1959}, the joint distribution of $(A_{ij},
+A_{ji})$ is expressed via a copula binding their marginal CDFs:
 \begin{align}
-p(Y\vert \mathbf{\theta},\mathbf{\rho})  = C_{\rho}(C_{\rho_1}(Y_1),\ldots,C_{\rho_M}(Y_M) )
+p(A_{ij}, A_{ji} \mid \theta, \rho)
+  = c_\rho\!\left(F_{ij}(A_{ij}),\; F_{ji}(A_{ji})\right)
+    \cdot f_{ij}(A_{ij}) \cdot f_{ji}(A_{ji}),
 \end{align}
-where $\rho$ is a vector of probabilities governing the dependence between communities.  Finally, if no community structure exists so that patterns of dependence are thought to be idiosyncratic, then the entire network can be modeled via a copula binding the marginal distributions of all possible ties in the network.
-
-Sometimes the application suggests a particular community structure that dictates a dependence graph.  Whales within the same pod, humans within the same extended family, neurons within the same spatial region, and roads within the same town may exhibit dependence patterns that are distinct from those observed between these natural groupings.  When the application offers no obvious structure, one of many community detection algorithms can be used.  A particularly simple method removes edges with high levels of betweenness centrality until a pre-specified number of components remain.  Applying a CGRG model to this type of community structure implicitly assumes that dependence patterns exist within highly connected subgraphs in a network.  Typically these methods assume relational variables are independently distributed, but vary in intensity according to the community to which to the two members of a dyad belong.  A CGRG model based on one of these models should be compared to the stochastic block model in terms of their ability to reconstruct the observed network structure.  Another possibility is to choose the choose as part of the modeling process.  In this case we choose community assignments $\mathbf{z}$, marginal parameters $\theta$ and dependence parameters $\rho$.  
-
-The examples presented in the following sections avoid the community detection problem by assuming the set of communities equals the set of dyads.  This assumption implies within dyad dependence and between dyad independence.  The associated dependence parameter measures the degree of reciprocity in the network.
-
-\subsection{Binary-Valued Copula Generated Random Graphs}
-\label{sec:binary}
-
-
-The exponential random graph model (\cite{hunter08}) is a common choice to model the network formation process.  Despite its popularity there exist reasons to consider alternative models within the missing data context.  An ERGM specifies a probability distribution through a vector of sufficient statistics.  When the network is completely observed, sufficient statistics can be selected to induce complicated dependence structures between the edges.  But, when a large portion of the network is missing, very few of the motifs are completely observed.  Moreover, as discussed in \cite{horvat15}, the ERGM class can be degenerate.  Additionally, although Bayesian approaches exist (\cite{bergm}), they require a solution for the daunting doubly intractable normalizing constant.  To provide a simple alternative, this section introduces a binary CGRG model for missing data.  
-\\ \\
-Copula models specify marginal distributions and induce dependence between them by binding their cumulative distribution functions.  The marginal distribution of the directed edges are modeled as a function of dyadic covariates and a vector of parameters.  Then the edges comprising each dyad are bound together with a copula.  Let $Y$ be a binary adjacency matrix representing a network of $N$ nodes so that $Y_{ij}=1$ if there is an edge from $i$ to $j$ and $Y_{ji}=1$ if there is an edge from $j$ to $i$.  Suppose $X_{ij}$ is a vector of a covariates associated with the potential edge from $i$ to $j$ and $X_{ji}$ is a vector of covariates associated with the potential edge from $j$ to $i$.  The parameter vector $\theta$ determines the association between the covariates and the probability of an edge.  One particularly simple probability function is the logistic function.  Making this assumption implies
+where $F_{ij}(a) = \Phi\!\left((a - \delta_i - \gamma_j)\sqrt{\lambda}\right)$,
+$\Phi$ and $\phi$ are the standard normal CDF and density, and
+$c_\rho(u,v) = \partial^2 C_\rho / \partial u\,\partial v$ is the Frank
+copula density
 \begin{align}
-\label{eq:edgelogistic}
-\omega_{ij} = p(Y_{ij}=1 \vert X_{ij}, \beta) = \frac{\exp\left\{x_{ij}^{\top}\theta \right\}}{1+\exp\left\{x_{ij}^{\top}\theta \right\}}.
+\label{eq:frank_density_rv}
+c_\rho(u,v)
+  = \frac{\rho(1 - e^{-\rho})\, e^{-\rho(u+v)}}
+         {\left[1 - e^{-\rho} - (1-e^{-\rho u})(1-e^{-\rho v})\right]^2},
+\qquad \rho \in \mathbb{R},
 \end{align}
-This formulation is equivalent to the exponential random graph model
-\begin{align*}
-p(Y=y \vert X,\beta) \propto \exp\left\{ \beta^{\top} g(Y\vert X)\right\}
-\end{align*}
-where $g(Y\vert X)$ is a vector of sufficient statistics of the form
-\begin{align*}
-\sum_{i=1}^N \sum_{j\neq i} Y_{ij}X_{ij}.
-\end{align*}
-As constructed, the directed edges are conditionally independent.  However, many applications dictate that the presence of a directed edge depends on the status of other directed edges.  One common assumption is that the two directed edges incident on the same nodes have a dependence structure.  The exponential random graph model induces dependence by introducing a term counting the number of reciprocal relations in the network,
-\begin{align*}
-\sum_{i=1}^N \sum_{j>i} Y_{ij}Y_{ji}.
-\end{align*}
-Alternatively, dependence between $Y_{ij}$ and $Y_{ji}$ can be induced by assuming their probabilities $\omega_{ij}$ and $\omega_{ji}$ defined in \ref{eq:edgelogistic} are related according to a bivariate copula.  A bivariate copula is a joint cumulative distribution function defined over the unit square with uniformly distributed marginals, \cite{joe} and \cite{nelsen}.  If $C$ is a bivariate copula tying together uniformly distributed random variables $U_2$ and $U_2$, then the joint distribution function is
-\begin{align*}
-C_{\rho} (u_1,u_2) = p(U_1 <u_1, U_2 < u_2\vert \rho)
-\end{align*}
-where $\rho$ is a dependence parameter.  Suppose $V_1$ and $V_2$ are continuous random variables with cumulative distribution functions $F_1$ and $F_2$, respectively.  Then the quantiles $U_1 = F_1(V_1)$ and $U_2=F_2(V_2)$ are uniformly distributed random variables.  Hence the bivariate distribution function for $V_1$ and $V_2$ can be expressed in terms of $U_1$ and $U_2$,
-\begin{align*}
-F(v_1,v_2) &= p(U_1 < F_1(v_1), U_2 < F_2(v_2)) \\
-&=C_{\rho}(u_1 = F_1(v_1),u_2 = F_2(v_2)).
-\end{align*}
-The probability density function is
-\begin{align*}
-f(v_1,v_2) = \frac{\partial}{\partial u_1}\frac{\partial}{\partial u_2} C_{\rho}(u_1,u_2).
-\end{align*}
-Similar logic applies to binary distributions.  Define $\tilde{\omega}_{ij} = 1- \omega_{ij}=p(Y_{ij}\leq 0 \vert X_{ij})$.  Then, for example,
-\begin{align*}
-p(Y_{ij} \leq 0,Y_{ji} \leq 0) = p(Y_{ij}=0,Y_{ji}=0) = C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji})
-\end{align*}
-is the probability mass of the event that both directed edges in dyad $ij$ are absent.  The probabilities of the other three events follow from basic properties of probability.  For example,
-\begin{align*}
-p(Y_{ij}=1,Y_{ji}=0) &= p(Y_{ij} \leq 1,Y_{ji} \leq 0) - p(Y_{ij} \leq 0,Y_{ji} \leq 0) \\
-&=\tilde{\omega}_{ji}  - C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji}) 
-\end{align*}
-A general formula appears as equation 2.2 in \cite{genest13}.  Table \ref{table:biv_cop} is a stylized version of a table which also appears in \cite{genest13}.  It presents the particular form of the probability mass function under the possible values of the edges in dyad $ij$. 
-\begin{table}
+The log-likelihood contribution of dyad $\{i,j\}$ is therefore
+\begin{align}
+\label{eq:dyad_loglik_rv}
+\log p(A_{ij}, A_{ji} \mid \theta, \rho)
+  = \log c_\rho\!\left(\Phi(z_{ij}),\, \Phi(z_{ji})\right)
+  + \log\phi(z_{ij}) + \log\phi(z_{ji}) + \log\lambda,
+\end{align}
+where $z_{ij} = (A_{ij} - \delta_i - \gamma_j)\sqrt{\lambda}$.
+
+In particular, $\rho$ is the only parameter governing within-dyad
+dependence; all remaining parameters affect only the marginal distributions.
+The dependence parameter $\rho \in \mathbb{R}$ governs \emph{reciprocity}:
+when $\rho > 0$ the edges $A_{ij}$ and $A_{ji}$ are positively associated;
+when $\rho < 0$ they are negatively associated, implying a hierarchical or
+asymmetric regulation structure; and $\rho = 0$ corresponds to independence
+(the Frank copula reduces to the independence copula in the limit
+$\rho \to 0$).  Figure~\ref{fig:rho_illustration} illustrates these three
+regimes in the uniform (PIT) space after marginal structure is removed.
+Section~\ref{sec:theory} formalises these properties.
+
+\begin{figure}[htb]
 \begin{center}
-\caption{Bivariate Probabilities} 
-\label{table:biv_cop}
-\begin{tabular}{| l | c | c | }
-\hline
-  & $Y_{ji}=0$ & $Y_{ji}=1 $ \\ \hline
- $Y_{ij}=0$  & $C(\tilde{\omega}_{ij},\tilde{\omega}_{ji})$  & $\tilde{\omega}_{ij} - C(\tilde{\omega}_{ij},\tilde{\omega}_{ji})$ \\
-  $Y_{ij}=1$  & $\tilde{\omega}_{ji} - C(\tilde{\omega}_{ij},\tilde{\omega}_{ji})$  & $1 - \tilde{\omega}_{ij} - \tilde{\omega}_{ji} + C(\tilde{\omega}_{ij},\tilde{\omega}_{ji})$ \\
-  \hline
- \end{tabular}
-  \end{center}
- \end{table}
-The entire network is then modeled as
- \begin{align}
- p(Y=y\vert X;\theta,\rho) =& \prod_{i = 1}^{N-1}\prod_{j>i}p(Y_{ij}=y_{ij},Y_{ji}=y_{ji}\vert x_{ij},x_{ji}) \\
- =&\prod_{i = 1}^{N-1}\prod_{j>i} C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji})^{(1-Y_{ij})(1-Y_{ji})} (\tilde{\omega}_{ij} - C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji}))^{(1-Y_{ij})Y_{ji}} \\
- &(\tilde{\omega}_{ji} - C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji}))^{(1-Y_{ji})Y_{ij}} (1 - \tilde{\omega}_{ij} - \tilde{\omega}_{ji} +C_{\rho}(\tilde{\omega}_{ij},\tilde{\omega}_{ji}))^{Y_{ij}Y_{ji}}.
- \end{align}
-Note the value of the directed edges depend upon one another if they belong to the same dyad.  Otherwise the value of the edges are conditionally independent.  The bivariate Frank copula is given by
-\begin{align*}
-C_{\rho}(u,v) = -\frac{1}{\rho} \log \left[ 1 + \frac{(\exp\left\{-\rho u\right\}-1)(\exp\left\{-\rho v\right\}-1)}{\exp\left\{-\rho\right\}-1} \right].
-\end{align*}
-This choice works well for the current application since the distribution is closed-form and is easy to compute.  The dependence parameter $\rho$ is defined on $\mathbb{R}\backslash\left\{0\right\}$ enabling the copula to represent positive and negative patterns of dependence.
+\includegraphics[width=\linewidth]{RhoIllustration.pdf}
+\caption{Frank copula structure in uniform (probability-integral-transform)
+  space for three representative values of $\rho$.  Each panel shows 400
+  simulated dyad pairs $(u_{ij}, u_{ji})$ with filled density contours
+  overlaid.  Left ($\rho = -4$): anti-diagonal concentration, meaning
+  $A_{ij}$ large $\Leftrightarrow$ $A_{ji}$ small---hierarchical structure.
+  Centre ($\rho = 0$): uniform, no dependence.  Right ($\rho = +4$):
+  diagonal concentration, meaning large $A_{ij}$ co-occurs with large $A_{ji}$---reciprocal
+  structure.  The brain data correspond to the left panel.}
+\label{fig:rho_illustration}
+\end{center}
+\end{figure}
+
+The choice of copula family is guided by the empirical dependence structure
+of the data (Figure~\ref{fig:copula_comparison}).  The brain dyad pairs
+exhibit symmetric anti-diagonal concentration without evidence of tail
+asymmetry.  This rules out asymmetric Archimedean families such as Clayton
+and Gumbel, which place excess mass in one tail corner of the unit square
+(Figure~\ref{fig:copula_comparison}, right column).  Among symmetric
+copulas, the Gaussian copula imposes an elliptical dependence structure
+that concentrates mass along linear contours; the Frank copula, by contrast,
+produces a sharper, non-elliptical anti-diagonal concentration that better
+matches the observed pattern (Figure~\ref{fig:copula_comparison}, center versus
+left column).
+
+The Frank family is therefore the simplest model that matches the observed
+symmetric anti-diagonal dependence structure.  Beyond the empirical fit,
+it has three additional theoretical properties that make it natural here.
+First, it is the unique Archimedean family with radial symmetry
+($C_\rho(u,v) = C_\rho(v,u)$), appropriate for an undirected dyad where
+the roles of $A_{ij}$ and $A_{ji}$ are symmetric.  Second, $\rho$ is
+defined on all of $\mathbb{R}$, spanning the full range from perfect
+negative to perfect positive dependence with independence at $\rho = 0$,
+natural for reciprocity which can take either sign.  Third, the one-to-one
+correspondence between $\rho$ and Kendall's $\tau$ via the Debye function
+(Theorem~\ref{thm:tau}) makes the parameter directly interpretable as a
+rank-correlation measure of reciprocity, invariant to marginal
+transformations.  Sensitivity to copula choice is discussed in
+Section~\ref{sec:discuss}.
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=\linewidth]{CopulaComparison.pdf}
+\caption{Comparison of three copula families at matched Kendall's
+  $\tau \approx -0.43$ (the brain data posterior).  Top row: density
+  contours in uniform space.  Bottom row: 500 simulated pairs.
+  The Frank copula (left) produces symmetric anti-diagonal concentration
+  that matches the observed dyad scatter (Figure~\ref{fig:dyad_scatter}).
+  The Gaussian copula (centre) imposes an elliptical structure that
+  concentrates mass along linear contours and provides a less sharp
+  anti-diagonal signal.  The 90°-rotated Clayton copula (right) produces
+  asymmetric tail behaviour---with excess mass in the upper-left corner
+  but not the lower-right---which is not supported by the data.  The Frank
+  family is the simplest model consistent with the symmetric anti-diagonal
+  structure in the brain networks.}
+\label{fig:copula_comparison}
+\end{center}
+\end{figure}
+
+To quantify the visual comparison, Table~\ref{tab:copula_comparison} reports
+the mean per-dyad log copula density for each of the three families, evaluated
+on the 112 brain data participants using posterior mean marginal parameters.
+Copula parameters are matched to the same Kendall's $\tau$ via the standard
+moment-matching formulas ($r = \sin(\pi\tau/2)$ for the Gaussian copula and
+$\theta = -2\tau/(1+\tau)$ for the 90°-rotated Clayton copula).  Frank
+provides the highest mean log density ($0.158$), followed by the Gaussian
+copula ($0.107$), with Clayton substantially lower ($-0.020$) and with
+considerably higher variance across participants.  The Frank copula is
+therefore the best-fitting symmetric copula on this dataset, both visually
+and in terms of predictive likelihood.
+
+\begin{table}[htb]
+\caption{Mean per-dyad log copula density for three families evaluated on
+  the brain data using posterior mean marginal parameters.  Copula parameters
+  are matched to the same Kendall's $\tau \approx -0.43$ (Frank: posterior
+  mean $\hat{\rho}$; Gaussian and Clayton: $\tau$-matched).  Frank provides
+  the best average fit across all 112 participants.}
+\label{tab:copula_comparison}
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+Copula family & Mean & Median & SD \\
+\midrule
+Frank & $0.158$ & $0.163$ & $0.143$ \\
+Gaussian copula & $0.107$ & $0.141$ & $0.174$ \\
+Clayton (90°) & $-0.020$ & $0.066$ & $0.335$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\subsection{Bayesian Inference}
+
+We adopt a Bayesian framework with the following hierarchical prior:
+\begin{align}
+\rho_0,\, \delta_0,\, \gamma_0 &\;\sim\; \mathcal{N}(0, 4), \\
+\rho^{(g)} \mid \rho_0, \sigma_\rho
+  &\;\sim\; \mathcal{N}(\rho_0,\, \sigma_\rho^2), \\
+\delta_i \mid \delta_0, \sigma_\delta
+  &\;\sim\; \mathcal{N}(\delta_0,\, \sigma_\delta^2),
+  \quad i = 2,\ldots,N, \\
+\gamma_j \mid \gamma_0, \sigma_\gamma
+  &\;\sim\; \mathcal{N}(\gamma_0,\, \sigma_\gamma^2),
+  \quad j = 1,\ldots,N, \\
+\lambda &\;\sim\; \mathrm{Gamma}(5,\, 4), \\
+\sigma_\rho,\, \sigma_\delta,\, \sigma_\gamma
+  &\;\sim\; \mathrm{Gamma}(0.1,\, 10).
+\end{align}
+The hyper-means $(\rho_0, \delta_0, \gamma_0)$ pool information across
+groups and nodes respectively; the hyper-variances control the degree of
+shrinkage.  Posterior samples are drawn via a componentwise
+Metropolis--Hastings algorithm, cycling through all parameters in sequence.
+
+\paragraph{MAP versus full posterior sampling.}
+Maximum a posteriori (MAP) estimation with a Laplace approximation is a
+natural fast alternative and provides useful diagnostics: the MAP point
+estimate is quick to compute, easy to cross-validate, and sufficient for
+the Kendall's $\tau$ interpretation.  We use full MCMC rather than MAP for
+three reasons specific to this application.  First, $\rho$ is the primary
+inferential target and its posterior can be non-symmetric at moderate
+$|\rho|$, making a diagonal Hessian approximation unreliable.  Second, the
+hierarchical prior induces posterior dependence among group-level parameters
+that a Laplace approximation around the MAP does not capture.  Third, full
+MCMC gives ranking probabilities directly: the posterior probability
+$\Pr(\rho^{(g_1)} < \rho^{(g_2)} < \rho^{(g_3)} \mid \mathrm{data})$ is
+the most honest summary of the ordering claim and requires no additional
+calculation beyond counting posterior draws.  We note that MAP estimates
+are consistent with the posterior means reported in
+Section~\ref{sec:brain_app}, supporting approximate unimodality.
 
 
-\section{Copula Generated Random Graphs for Real-Valued Networks}
+%================================================================%
+%  Section 4: Theoretical Properties                             %
+%================================================================%
+\section{Theoretical Properties of the CGRG}
+\label{sec:theory}
+
+This section derives several properties that clarify the interpretation and
+estimability of $\rho$.  The main results establish its margin-invariant rank
+interpretation (Theorem~\ref{thm:tau}), identifiability for $N \geq 3$
+(Theorem~\ref{thm:ident}), and $\sqrt{S}$-consistency of the MLE under a
+simplified parametric model (Theorem~\ref{thm:mle}).  An entropy decomposition
+is deferred to Appendix~\ref{sec:appendix_entropy}.
+
+\subsection{Reciprocity and Rank Correlation}
+
+\begin{theorem}[Kendall's $\tau$ and Margin-Invariant Reciprocity]
+\label{thm:tau}
+Let $(A_{ij}, A_{ji})$ follow a CGRG with Frank copula parameter $\rho$ and
+any continuous marginals.  Define the first-order Debye function
+$D_1(\rho) = \rho^{-1}\int_0^\rho t(e^t - 1)^{-1}\,dt$, extended by
+continuity to $D_1(0) = 1$.  Then:
+\begin{enumerate}
+\item[\rm (a)] Kendall's $\tau$ satisfies
+  $\tau(\rho) = 1 - 4\rho^{-1}[1 - D_1(\rho)]$.
+\item[\rm (b)] $\tau(\rho)$ is strictly increasing in $\rho$ on
+  $\mathbb{R}$, with $\tau(0) = 0$, $\tau(\rho) \to +1$ as
+  $\rho \to +\infty$, and $\tau(\rho) \to -1$ as $\rho \to -\infty$.
+\item[\rm (c)] $\operatorname{sign}(\tau(\rho)) = \operatorname{sign}(\rho)$.
+\item[\rm (d)] $\tau(\rho)$ depends only on $\rho$, not on
+  $\delta_i, \gamma_j$, or $\lambda$.  Therefore $\rho$ provides a
+  \emph{margin-invariant} parametrization of reciprocity: its rank-correlation
+  interpretation is unchanged by strictly increasing transformations of the
+  marginals.
+\end{enumerate}
+\end{theorem}
+
+\begin{proof}
+\emph{Part (a).} For any copula $C$, Kendall's $\tau$ satisfies
+$\tau = 4\,\mathbb{E}_{(U,V) \sim C}[C(U,V)] - 1$ \citep[Theorem
+5.1.3]{nelsen}.  Evaluating the expectation for the Frank family yields
+part (a); see \citet[Section~5.3]{joe}.
+
+\emph{Part (b).} Differentiating $\tau(\rho)$ and using
+$D_1'(\rho) = \rho^{-1}[\rho(e^\rho-1)^{-1} - D_1(\rho)]$ gives
+\[
+\tau'(\rho)
+  = \frac{4}{\rho^2}\!\left[1 - \frac{\rho}{e^\rho - 1}\right].
+\]
+Since $e^\rho - 1 > \rho$ for $\rho > 0$ and $e^\rho - 1 < \rho$ for
+$\rho < 0$ (both by strict convexity of $e^\rho$), we have
+$\tau'(\rho) > 0$ for all $\rho \neq 0$.  The limiting values follow
+from $D_1(\rho) \to 0$ as $\rho \to +\infty$ and $D_1(\rho) \to 1$ as
+$\rho \to 0$.
+
+\emph{Part (c).} Follows from $\tau(0) = 0$ and strict monotonicity.
+
+\emph{Part (d).} Kendall's $\tau$ is invariant under strictly increasing
+marginal transformations \citep[Theorem~5.1.9]{nelsen}.  Since normal CDFs
+are strictly increasing, the rank correlation depends only on $C_\rho$.
+\end{proof}
+
+\subsection{Identifiability}
+
+Theorem~\ref{thm:ident} applies to the simplified model of this section:
+Gaussian marginals with fixed parameters $(\delta_i, \gamma_j, \lambda)$,
+dyadic Frank copula with parameter $\rho$, and $S \geq 1$ i.i.d.\ replicated
+networks.  Formal identifiability of the full hierarchical model in
+Section~\ref{sec:cgrg_brain} involves additional considerations
+(shared hyperparameters and group-specific precision parameters) that
+are not addressed here; extending the argument to that setting is of
+theoretical interest and left for future work.
+
+\begin{theorem}[Identifiability]
+\label{thm:ident}
+Under the constraint $\delta_1 = 0$, the parameter vector
+\[
+\theta = (\delta_2, \ldots, \delta_N,\; \gamma_1, \ldots, \gamma_N,\;
+          \lambda,\; \rho)
+\]
+is identifiable from the joint distribution of
+$\{(A_{ij}, A_{ji}) : 1 \leq i < j \leq N\}$ whenever $N \geq 3$.
+\end{theorem}
+
+\begin{proof}
+Denote the marginal mean $\mu_{ij} = \mathbb{E}[A_{ij}] = \delta_i +
+\gamma_j$ and the common marginal variance $\sigma^2 = \lambda^{-1}$.
+
+\emph{Step 1: $\lambda$.}
+Every marginal is $\mathcal{N}(\mu_{ij}, \lambda^{-1})$, so
+$\lambda^{-1} = \mathrm{Var}(A_{ij})$ for any $i \neq j$.
+Hence $\lambda$ is identified.
+
+\emph{Step 2: Receiver effects $\gamma_j$ for $j \geq 2$.}
+Because $\delta_1 = 0$, we have $\mu_{1j} = \gamma_j$ for all $j \geq 2$.
+Thus $\gamma_j = \mu_{1j}$ is identified directly from the marginal mean
+of $A_{1j}$.
+
+\emph{Step 3: Sender effects $\delta_i$ for $i \geq 2$ and $\gamma_1$.}
+For $i \geq 2$, we have $\mu_{i1} = \delta_i + \gamma_1$, so once
+$\gamma_1$ is known, $\delta_i = \mu_{i1} - \gamma_1$.  It remains to
+identify $\gamma_1$.  For any $i \geq 2$ and $j \geq 2$ with $j \neq 1$,
+\[
+\delta_i = \mu_{ij} - \gamma_j = \mu_{ij} - \mu_{1j},
+\]
+using the expressions from Step~2.  Substituting back into
+$\gamma_1 = \mu_{i1} - \delta_i$ gives
+\[
+\gamma_1 = \mu_{i1} - (\mu_{ij} - \mu_{1j}).
+\]
+This requires at least one pair $(i,j)$ with $i,j \geq 2$ and $i \neq j$,
+which exists whenever $N \geq 3$.  (With $N = 2$ the only pair is $(2,1)$,
+giving $\delta_2 + \gamma_1 = \mu_{21}$, a single equation in two unknowns.)
+
+\emph{Step 4: $\rho$ from the copula.}
+With $\lambda$ and the mean structure identified, the marginal CDFs
+$F_{ij}(a) = \Phi((a - \mu_{ij})\sqrt{\lambda})$ are fully known.
+The joint CDF $H_{ij}(a,b) = C_\rho(F_{ij}(a), F_{ji}(b))$ determines
+$C_\rho$ via $C_\rho(u,v) = H_{ij}(F_{ij}^{-1}(u), F_{ji}^{-1}(v))$.
+By Sklar's theorem, the copula of a bivariate distribution with continuous
+marginals is unique.  Since $\rho \mapsto C_\rho$ is injective for the
+Frank family (strict monotonicity of $\tau(\rho)$ in
+Theorem~\ref{thm:tau}(b) implies $C_\rho \neq C_{\rho'}$ for
+$\rho \neq \rho'$), $\rho$ is uniquely determined.
+\end{proof}
+
+\subsection{Asymptotic Inference}
+
+The asymptotic result below applies to the simplified CGRG of this section
+(fixed $N$, shared $\rho$, i.i.d.\ replicates), not to the full hierarchical
+model of Section~\ref{sec:cgrg_brain}.  The natural growing-sample regime for
+replicated network data is fixed number of nodes $N$ and growing number of
+replicated networks $S$.
+
+\begin{theorem}[$\sqrt{S}$-Consistency of the MLE for $\rho$]
+\label{thm:mle}
+Fix $N \geq 3$ and let $S \to \infty$.  Assume: (i) the $S$ networks are
+independent replicates from the CGRG model with true parameter
+$\rho_0 \in \mathbb{R}$; (ii) all $\delta_i$ and $\gamma_j$ are
+known, so $\rho$ is the only unknown; (iii) the marginal parameters are such
+that the probability-integral-transformed dyad values $(U_s^{ij},V_s^{ij})$
+are i.i.d.\ $c_{\rho_0}$ for each pair $i < j$.  Define the Fisher information
+for $\rho$ from the $m = N(N-1)/2$ dyads of a single replicate:
+\[
+\mathcal{I}(\rho)
+  = m \cdot \mathbb{E}_{c_\rho}\!\left[
+    \left(\frac{\partial}{\partial\rho}\log c_\rho(U,V)\right)^{\!2}
+    \right].
+\]
+Then $\mathcal{I}(\rho) \in (0,\infty)$ for all $\rho \neq 0$, and the
+maximum likelihood estimator $\hat\rho_S$ satisfies
+\[
+\sqrt{S}\,(\hat\rho_S - \rho_0)
+  \;\xrightarrow{d}\; \mathcal{N}\!\left(0,\;
+    \mathcal{I}(\rho_0)^{-1}\right)
+\quad \text{as } S \to \infty.
+\]
+The independence case $\rho_0 = 0$ requires separate local analysis
+and is not covered by this result.
+\end{theorem}
+
+\begin{proof}
+The Frank log-copula density is smooth in $\rho$ on $(0,1)^2 \times
+(\mathbb{R}\setminus\{0\})$, with bounded score, giving
+$\mathcal{I}(\rho) < \infty$.  Positivity follows from strict monotonicity
+of $\tau(\rho)$ (Theorem~\ref{thm:tau}(b)).  Asymptotic normality then
+follows from the standard M-estimator CLT \citep[Theorem~5.41]{vandervaart98}
+applied to the i.i.d.\ sum $\mathcal{L}_S(\rho) =
+\sum_{s=1}^{S}\sum_{i<j}\ell_\rho(U_s^{ij},V_s^{ij})$.
+\end{proof}
+
+\begin{remark}
+Theorem~\ref{thm:mle} fixes the marginal parameters and treats $\rho$ as
+the sole unknown; it does not cover the full hierarchical model or joint
+estimation.  Its value is to establish the $\sqrt{S}$ information-scaling
+for replicated-network data.  Joint asymptotics under simultaneous estimation
+would require additional profile likelihood analysis and is left for future
+work.
+\end{remark}
 
 
-\section{A Real-Valued Copula Generated Random Graphs for Brain Networks}
+%================================================================%
+%  Section 5 (was 4): Brain Application Model                    %
+%================================================================%
+\section{Hierarchical CGRG for Replicated Brain Networks}
 \label{sec:cgrg_brain}
-\subsection{A Method for Section 3: Effective Connectivity by Disease Group}
-Section 3 of the paper assesses associations between network structure and a categorical variable indicating the disease status of each unit in the study.  This extension uses concepts from social network analysis to estimate more complicated structures within brain networks.  The original paper treats four regions in the brain as nodes in a network.  The dynamic causal model produces estimates of a regulation network represented as the $4\times$ 4 matrix $A$.  Unlike many social networks, the components of $A$ are real-valued and the diagonal is not zero.  That is, self-loops are permitted.  Let $A^{(s)}$ be the estimated brain network for unit $s = 1,\ldots, N$ and let $g_s$ be a categorial variables taking values in $\left\{\text{Null}, \text{MCI},\text{AD} \right\}$.  The analysis in the papers fits linear models to each of the sixteen edges in the brain networks, including $g_s$ and a vector of controls $x_s$ as covariates.  Consider an alternative approach.  Let $i$ and $j$ be two nodes in a network so that $A_{ij}$ and $A_{ji}$ are edges.  Networks can exhibit various patterns of dependence such as 
-\begin{itemize}
-\item Sender effects:  dependence between $A_{ij}$ and $A_{ik}$ for $i\neq j,k$ and $j\neq k$,
-\item Receiver effects:  dependence between $A_{ij}$ and $A_{kj}$ for $j\neq i,k$ and $k\neq i$,
-\item Reciprocity:  dependence between $A_{ij}$ and $A_{ji}$ for $i \neq j$.
-\end{itemize}
-\subsection{Copula Generated Random Graphs for Brain Connectivity}
-Our strategy to estimate structure associated with brain regulation networks is to include sender and receiver terms in the marginal probability distribution for each $A_{ij}$ with $i\neq j$.  Then a Frank copula binds the marginal distributions of each dyad $ij$ containing the edges $A_{ij}$ and $A_{ji}$.  Define the marginal density for edge $A_{ij}$ with $i\neq j$ to be
+
+\subsection{Data and Network Construction}
+
+We apply the model to $S = 112$ resting-state fMRI-derived effective
+connectivity networks from \citet{nie2020}.  Each network is a $4 \times 4$
+matrix $A^{(s)}$ of connectivity strengths estimated by spectral dynamic
+causal modelling \citep{friston2014} for the four canonical nodes of the
+default mode network (DMN): medial prefrontal cortex (mPFC, node~1),
+posterior cingulate cortex (PCC, node~2), left inferior parietal lobule
+(LIPL, node~3), and right inferior parietal lobule (RIPL, node~4).
+These four regions are the core hubs of the DMN and are known to show
+altered effective connectivity in Alzheimer's disease
+\citep{dmn2016, huang2022, monash2024}.
+Participants are classified as Alzheimer's disease (AD, $S_{\mathrm{AD}} = 12$),
+mild cognitive impairment (MCI, $S_{\mathrm{MCI}} = 63$), or cognitively normal
+(NL, $S_{\mathrm{NL}} = 37$), with group labels $g_s \in \{\mathrm{AD},
+\mathrm{MCI}, \mathrm{NL}\}$.
+Throughout this section $N = 4$ denotes the number of DMN regions (nodes) and
+$S = 112$ denotes the total number of participants (replicated networks).
+
+\subsection{Multi-Group CGRG Model}
+
+The network edges fall into two types.  \emph{Self-connections}
+$A^{(s)}_{ii}$ capture the intrinsic decay of each region.  \emph{Off-diagonal
+edges} $A^{(s)}_{ij}$ ($i \neq j$) represent directed regulatory strengths and
+are the primary object of interest.
+
+Following Section~\ref{sec:realvalued}, the marginal distribution of each
+off-diagonal edge is
+\begin{equation}
+\label{eq:brain_marginal}
+A^{(s)}_{ij} \mid \delta_i^{(g_s)}, \gamma_j^{(g_s)}, \lambda^{(g_s)}
+  \;\sim\; \mathcal{N}\!\left(\delta_i^{(g_s)} + \gamma_j^{(g_s)},\;
+    (\lambda^{(g_s)})^{-1}\right),
+\end{equation}
+where $\delta_i^{(g)}$ is the sender effect of node $i$ in group $g$,
+measuring the tendency of region $i$ to exert regulatory influence, and
+$\gamma_j^{(g)}$ is the receiver effect of node $j$, measuring the
+tendency of region $j$ to be regulated.  The precision $\lambda^{(g)}$ is
+group-specific.  We set $\delta_1^{(g)} = 0$ for all groups.  Self-connections
+are modeled marginally as $A^{(s)}_{ii} \sim \mathcal{N}(\delta_i^{(g_s)} +
+\gamma_i^{(g_s)}, (\lambda^{(g_s)})^{-1})$; they do not enter the copula.
+
+Within each group $g$, the two directed edges of dyad $\{i,j\}$ are
+joined by a Frank copula with group-specific parameter $\rho^{(g)}$:
+\[
+p(A^{(s)}_{ij}, A^{(s)}_{ji} \mid \rho^{(g_s)}, \ldots)
+  = c_{\rho^{(g_s)}}\!\left(F^{(g_s)}_{ij}(A^{(s)}_{ij}),\,
+    F^{(g_s)}_{ji}(A^{(s)}_{ji})\right)
+    \cdot f^{(g_s)}_{ij}(A^{(s)}_{ij}) \cdot f^{(g_s)}_{ji}(A^{(s)}_{ji}),
+\]
+where $F^{(g)}_{ij}$ and $f^{(g)}_{ij}$ are the CDF and density of
+\eqref{eq:brain_marginal}.  The group log-likelihood is
+\begin{equation}
+\label{eq:brain_loglik}
+\log p(\{A^{(s)}\}_{g_s=g} \mid \theta^{(g)}, \rho^{(g)})
+  = \sum_{s:\,g_s=g}\!\left[
+      \sum_{i=1}^4 \log p(A^{(s)}_{ii})
+      + \sum_{i < j} \log p(A^{(s)}_{ij}, A^{(s)}_{ji})
+    \right].
+\end{equation}
+
+\subsection{Hierarchical Prior}
+
+The sender effects, receiver effects, and copula parameters are linked
+across groups via shared hyperparameters, reflecting the belief that the
+functional roles of the four DMN nodes are similar across disease states:
 \begin{align}
-\label{eq:node_level}
-p(A^{(s)}_{ij} \vert g_s,X_s,\beta_{ij},\delta_i^{(g_s)},\gamma_j^{(g_s)}) = X_s^{\top}\beta_{ij} + \delta_i^{(g_s)} + \gamma_j^{(g_s)} + \epsilon^{(g_s)}_{ij} 
+\rho_0,\, \delta_0,\, \gamma_0 &\;\sim\; \mathcal{N}(0, 4),
+  \label{eq:hyperprior} \\
+\rho^{(g)} \mid \rho_0, \sigma_\rho
+  &\;\sim\; \mathcal{N}(\rho_0,\, \sigma_\rho^2),
+  \quad g = 1,2,3, \\
+\delta_i^{(g)} \mid \delta_0, \sigma_\delta
+  &\;\sim\; \mathcal{N}(\delta_0,\, \sigma_\delta^2),
+  \quad i = 2,3,4,\; g = 1,2,3, \\
+\gamma_j^{(g)} \mid \gamma_0, \sigma_\gamma
+  &\;\sim\; \mathcal{N}(\gamma_0,\, \sigma_\gamma^2),
+  \quad j = 1,\ldots,4,\; g = 1,2,3, \\
+\lambda^{(g)} &\;\sim\; \mathrm{Gamma}(5,\, 4),
+  \quad g = 1,2,3, \\
+\sigma_\rho,\, \sigma_\delta,\, \sigma_\gamma
+  &\;\sim\; \mathrm{Gamma}(0.1,\, 10).
+  \label{eq:hyperprior_end}
 \end{align}
-where 
-\begin{align*}
-\beta_{ij} &\sim N(\beta, \tau_{\beta}) \\
-\delta_i^{(g_s)} &\sim N(\delta_i,\tau_{\delta}) \\
-\gamma_j^{(g_s)} &\sim N(\gamma_j,\tau_{\gamma}) \\
-\epsilon^{(g_s)}_{ij} &\sim N(0,\tau_{g_s}).
-\end{align*}
-Note that the sender and receiver terms are not identified without further assumptions.
-\\ \\
-The sender term $\delta^{(g_s)}_i$ and receiver term $\gamma^{(g_s)}_j$ are modeled hierarchically.  That is, although the terms have distinct probability distribution for each disease status, $g_s$, their means share a common prior distribution.  This assumption reflects our belief that the nodes play similar roles in the brain.  More explicitly, certain nodes are more likely to regulate other nodes while some nodes are more likely to be regulated than other nodes.  This pattern of regulating and being regulated is similar across brains belonging to different disease states.  Self-ties are modeled as
-\begin{align*}
-p(A^{(s)}_{ii} \vert X_s,\beta_{ii},\delta_i^{(g_s)},\gamma_i^{(g_s)}) = X_s^{\top}\beta_{ii} + \delta_i^{(g_s)} + \gamma_i^{(g_s)} + \epsilon^{(g_s)}_{ii} 
-\end{align*}
-Recall that by Sklar's theorem every multivariate cumulative distribution function can be expressed in terms of its marginals and a copula.   When the multivariate distribution has a density, it holds that 
-\begin{align*}
-h(x_{1},\dots ,x_{d})=c(F_{1}(x_{1}),\dots ,F_{d}(x_{d}))\cdot f_{1}(x_{1})\cdot \dots \cdot f_{d}(x_{d})
-\end{align*}
-The joint probability density of $A^{(s)}_{ij}$ and $A^{(s)}_{ji}$ is
-\begin{align*}
-p(A^{(s)}_{ij},A^{(s)}_{ji} \vert X_s,\rho^{(g_s)},\cdot) &= \frac{\partial}{\partial A_{ij}} \frac{\partial}{\partial A_{ji}} C(F(A_{ij}),F(A_{ji})\vert \rho^{(g_s)})  \\
-&= \frac{\partial}{\partial F(A_{ij})} \frac{\partial}{\partial F(A_{ji})} C(F(A_{ij}),F(A_{ji})\vert \rho^{(g_s)})  f(A_{ij}) f(A_{ji})\\
-&= c(F(A_{ij}),F(A_{ji})\vert \rho^{(g_s)}) f(A_{ij}) f(A_{ji})
-\end{align*}
-where 
-\begin{align*}
-c(F(A_{ij}),F(A_{ji})\vert \rho^{(g_s)}) =\frac{\rho^{(g_s)}(1-\exp\left\{-\rho^{(g_s)}\right\})\exp\left\{-\rho^{(g_s)}(F(A_{ij}) + F(A_{ji}))\right\}}{\left[1-\exp\left\{-\rho^{(g_s)} \right\} - (1-\exp\left\{ -\rho^{(g_s)}F(A_{ij}) \right\})(1-\exp\left\{ -\rho^{(g_s)}F(A_{ji}) \right\})  \right]^2}
-\end{align*}
-Here we assume
-\begin{align*}
-\rho^{(g_s)} &\sim N(\rho,\tau_{\rho}) \\
-\end{align*}
-Let $\theta = (\mathbf{\beta},\mathbf{\delta},\mathbf{\gamma},\mathbf{\rho})$, then the likelihood of the collection of networks $\left\{A^{(s)} \right\}_{s=1}^N$ is
-\begin{align*}
-L(\theta \vert A^{(1)},\ldots,A^{(N)},X) = \prod_{s=1}^S \prod_{i=1}^N p(A^{(s)}_{ii} \vert X_s,\beta_{ii},\delta_i^{(g_s)},\gamma_i^{(g_s)})\prod_{j:j>i} p(A^{(s)}_{ij},A^{(s)}_{ji} \vert X_s,\rho^{(g_s)},\cdot).
-\end{align*}
-%If the $Z_{jk}$ can be modeled with a Normal distribution credibly, then for each $s\in\left\{\text{Null}, \text{MCI},\text{AD} \right\}$,
-%\begin{align*}
-%Z_i^{(s)} \sim N_{16}\left(x_i^{\top}\beta^{(s)}, \Sigma_i^{(s)} \right)
-%\end{align*}
-%with
-%\begin{align*}
-%\Sigma^{(s)}_{i,jj,jj} &= (\sigma_{jj}^2)^{(s)} \\
-%\Sigma^{(s)}_{i,jk,kj} &= \delta^{(s)}\\
-%\Sigma^{(s)}_{i,jk,jl} &= \rho_j^{(s)} \\
-%\Sigma^{(s)}_{i,kj,lj} &= \tau_j^{(s)} \\
-%\Sigma^{(s)}_{i,jk,lj} &= \nu^{(s)} \\
-%\Sigma^{(s)}_{i,jk,lm} &= \nu^{(s)} \\
-%\end{align*}
-%$\delta^{(s)}$ measures reciprocity, $\rho_j^{(s)}$ captures sender effects, $\tau_j^{(s)}$ captures receiver effects and $\nu^{(s)}$ is a value for all the other pairs of edges in the network.  The parameters $\theta^{(s)} = (\beta^{(s)}, \sigma^{(s)}, \delta^{(s)}, \rho^{(s)}, \tau^{(s)},\nu^{(s)})$ can be estimated hierarchically, sharing information across units belonging to the three disease states.  The trick is to ensure that $\Sigma_i^{(s)}$ is positive-definite.  Defining it as such constrains the space of possible covariance matrices.  The support will be smaller than the support of the Inverse-Wishart.  Is there a way to define a refinement of the Inverse-Wishart with these extra parameters?
-%\subsubsection{Gaussian Copula Formulation}
-%If the marginals are not Gaussian, then they can specified and linked with a Gaussian Copula using the same $\Sigma$ as in the prior section.
-%\subsubsection{Reciprocity Only Formulation}
-%Assume dependence between $Z_{jk}$ and $Z_{kj}$.  Then 
-%\begin{align*}
-%p(Z^{(s)}_i\vert x_i) = \prod_{j,k: j<k}p(Z_{jk},Z_{kj} \vert x_i,\beta^{(s)},\delta^{(s)})
-%\end{align*}
-%where 
-%\begin{align*}
-%p(Z_{jk},Z_{jk} \vert x_i,\beta^{(s)},\delta^{(s)}) = \frac{\partial}{\partial Z_{jk}} \frac{\partial}{\partial Z_{kj}} C(Z_{jk},Z_{kj};\delta^{(s)})
-%\end{align*}
-%and $C(\cdot,\cdot)$ is an appropriately chosen copula.
-\subsection{Model Properties}
-Simplifying the model to
-\begin{align*}
-p(A^{(s)}_{ij} \vert \delta_i^{(g_s)},\gamma_j^{(g_s)}) = \delta_i^{(g_s)} + \gamma_j^{(g_s)} + \epsilon^{(g_s)}_{ij} 
-\end{align*}
-implies the marginal distribution
-\begin{align*}
-A^{(s)}_{ij} \vert   \delta_i^{(g_s)},\gamma_j^{(g_s)} \sim \mathcal{N} (\delta_i^{(g_s)} + \gamma_j^{(g_s)} , \sigma^2_{\epsilon}).
-\end{align*}
-Some questions to consider:
+The hyper-means $(\rho_0, \delta_0, \gamma_0)$ pool information across the
+three groups; the hyper-standard-deviations $(\sigma_\rho, \sigma_\delta,
+\sigma_\gamma)$ control the degree of shrinkage.
+
+\subsection{Posterior Computation}
+
+Posterior samples are drawn via a componentwise random-walk
+Metropolis--Hastings algorithm \citep{nie2020}, cycling through
+$\rho_0$; $\rho^{(g)}$ for $g = 1,2,3$; $\delta_0$;
+$\delta_i^{(g)}$ for $i = 2,3,4$ and $g = 1,2,3$; $\gamma_0$;
+$\gamma_j^{(g)}$ for $j = 1,\ldots,4$ and $g = 1,2,3$; $\lambda^{(g)}$
+for $g = 1,2,3$; and $\sigma_\rho, \sigma_\delta, \sigma_\gamma$.
+Symmetric uniform proposals are used throughout.  Burn-in of 10,000
+iterations is discarded and every 100th draw of the subsequent 100,000
+iterations is retained, yielding 1,000 approximately independent posterior
+draws.  Step sizes were tuned during a pilot run to achieve acceptance rates
+in the 20--40\% range for each block.  The posterior probability of the
+strict group ordering,
+$\Pr(\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} < \rho^{(\mathrm{AD})}
+\mid \mathrm{data}) = 0.20$, is computed directly by counting the fraction of
+retained draws satisfying the inequality; this single number summarises
+the confidence in the ordering claim without requiring any additional
+analytical approximation.  Convergence is assessed by running two
+independent chains from dispersed starting values and verifying that
+$\hat{R} < 1.05$ and the effective sample size exceeds 200 for each
+scalar parameter of interest.
+
+\section{Relationship to the Multivariate Normal}
+\label{sec:compare}
+
+A natural alternative to the CGRG is a bivariate normal model for each dyad,
+with common marginal variance $\lambda^{-1}$ and a dyad-specific correlation
+$r_{ij}$:
+\[
+\begin{pmatrix} A_{ij} \\ A_{ji} \end{pmatrix}
+\sim \mathcal{N}\!\left(
+  \begin{pmatrix} \delta_i + \gamma_j \\ \delta_j + \gamma_i \end{pmatrix},\;
+  \frac{1}{\lambda}\begin{pmatrix} 1 & r_{ij} \\ r_{ij} & 1 \end{pmatrix}
+\right).
+\]
+The CGRG replaces this Gaussian joint distribution with a Frank-copula joint
+distribution sharing the same marginals.  Three differences are worth noting.
+
+First, the Frank copula is not a Gaussian copula, so the two models differ in
+their dependence structure even when Kendall's $\tau$ is matched via
+$r \approx \sin(\pi\tau/2)$.  The Frank copula has symmetric, lighter tails
+than the Gaussian; for effective connectivity data, this means the CGRG does
+not force a specific tail dependence pattern that may not hold.
+
+Second, the CGRG uses a single scalar $\rho$ across all dyads within a group,
+whereas the dyad-specific bivariate normal uses $N(N-1)/2$ correlation
+parameters per group.  This parsimony is the primary practical advantage in
+the replicated-network setting: with small $S_g$, a single $\rho$ is
+estimable where dyad-specific correlations would require pooling assumptions
+or regularization.
+
+Third, the margin-invariance of $\rho$ (Theorem~\ref{thm:tau}(d)) has no
+counterpart in the bivariate normal: Pearson correlation depends on the marginal
+distributions, whereas Kendall's $\tau$ and the Frank copula parameter do not.
+This makes $\rho$ directly comparable across groups even when sender/receiver
+effects differ.
+
+\section{Simulation Study}
+\label{sec:sim}
+
+We assess parameter recovery under two scenarios, each with $N = 5$ nodes and
+$S = 100$ replicated networks per group.
+
 \begin{itemize}
-\item Can we find a distribution for the entire network?  
-\item What can we say for a fixed number of nodes $N$ as the number of units $S$ grows large?  
-\item What can we say for a fixed $S$ as the number of nodes in the network $N$ grows large?
+\item \textbf{Scenario~1}: $\rho^{(1)} = -7$ (strong negative reciprocity),
+  $\delta^{(1)} = (0, 2, -2, 0.25, -0.5)$,
+  $\gamma^{(1)} = (15, 0.5, -2, 2, -1)$, $\lambda^{(1)} = 1$.
+\item \textbf{Scenario~2}: $\rho^{(2)} = -3$ (moderate negative reciprocity),
+  $\delta^{(2)} = (0, 0.33, 8, -5, 9)$,
+  $\gamma^{(2)} = (3, -12, 0, 4, -3)$, $\lambda^{(2)} = 1$.
 \end{itemize}
 
-\subsection{Sampling Routine}
-A simple MCMC routine is sufficient to sample from the posterior distribution.  To sample the components in $\boldsymbol{\rho}$ we use the posterior distribution  
+Data were generated using the Frank copula with Gaussian marginals via the
+conditional quantile method: for each replicate and each dyad $\{i,j\}$,
+a pair $(u,v)$ was drawn from the Frank copula $C_\rho$ by sampling $u \sim
+\mathrm{Uniform}(0,1)$ and $v = C_\rho^{-1}(v|u)$ via conditional inversion,
+then transforming $(A_{ij}, A_{ji}) = (F_{ij}^{-1}(u), F_{ji}^{-1}(v))$ using
+the Gaussian marginal quantile functions.  Table~\ref{tab:sim} summarises
+posterior performance from a single simulated dataset per scenario; it
+illustrates parameter recovery under the model but does not constitute a
+repeated-simulation coverage study.  The copula parameter $\rho$ is recovered
+less precisely than $\gamma$ (larger SD relative to the scale of the
+parameter), as expected: $\rho$ is identified only through higher-order joint
+structure, while $\gamma_j$ is identified from marginal means.
+Figures~\ref{fig:sim1} and \ref{fig:sim2} display the marginal posteriors of
+$\rho$ under the two scenarios.
 
-\section{Comparison with Multivariate Normal}
-As a standard of comparison consider
-\begin{align*}
-A^{(s)}_{ij} = \delta_i^{(g_s)} + \gamma_j^{(g_s)} + \epsilon^{(g_s)}_{ij} 
-\end{align*}
-where 
-\begin{align*}
-\epsilon \sim \mathcal{N} \left(0,\Sigma \right)
-\end{align*}
-and
-\begin{align*}
-\Sigma \sim \text{IW}(c,Q).
-\end{align*}
-This model imposes correlation between edges with the sender and receiver effects, and via the observation errors.  Since the observation errors are quite general the correlation between $A^{(s)}_{ij}$ and $A^{(s)}_{kl}$ can be nonzero.   Under the Copula-Generated Random graph model, these correlations are not modeled.   To see how the two methods compare, consider the ratio of the joint probability of $A^{(s)}_{ij}$ and $A^{(s)}_{ji}$ under the two models.  Let $\Sigma_{ij}$ be the 2$\times$2 submatrix containing the correlation between $A_{ij}$ and $A_{ji}$.  Then the ratio of the joint density of the CGRG model to the Normal model is
- \begin{align*}
-c(A^{(s)}_{ij},A^{(s)}_{ji}\vert\rho^{(g_s)},\delta^{(g_s)},\gamma_j^{(g_s)})\frac{p(A^{(s)}_{ij}) p(A^{(s)}_{ji}) }{p(A_{ij}^{(s)}, A_{ji}^{(s)}\vert \delta^{(g_s)},\gamma_j^{(g_s)},\Sigma_{ij})} 
-\end{align*}
-The ratio of the independent edges versus the bivariate normal reduces to
-\begin{align}
-\label{eq:pr_ratio}
-\frac{p(A^{(s)}_{ij})}{p(A_{ij}^{(s)}\vert A_{ji}^{(s)})} \propto \exp\left\{ - \left(A^{(s)}_{ij}-\frac{c\sigma^2_b - b\sigma^2_c}{\sigma^2_c - \sigma^2_b}\right)^2/ 2\sigma^2_b\sigma^2_c \right\} 
-\end{align}
-where
-\begin{align*}
-b &= \delta_i + \gamma_j \\
-c &=  \delta_i + \gamma_j + \frac{\sigma_{ij}}{\sigma_{ji}} \rho_{ij,ji} \left( A_{ji} - \delta_j - \gamma_i\right) \\
-\sigma^2_b &= \sigma^2_{\epsilon} \\
-\sigma^2_c &= (1-\rho^2_{ij,ji}) \sigma^2_{ij}
-\end{align*}
-This implies the KL-Divergence is
-\begin{align*}
-\text{KL}(p_{C} \| p_{MVN}) = \int \int p_C\left( \log\left( c(A^{(s)}_{ij},A^{(s)}_{ji}\vert\rho^{(g_s)},\delta^{(g_s)},\gamma_j^{(g_s)}) \right) + \log\left(\frac{p(A^{(s)}_{ij})}{p(A_{ij}^{(s)}\vert A_{ji}^{(s)})} \right) \right)\,dA_{ij}\,dA_{ji}.
-\end{align*}
-The above result aids in the comparison between other edges.  For example, the ratio in \ref{eq:pr_ratio} characterizes the difference in probability densities for edges $A_{ij}$ and $A_{kl}$.
+Additional simulations with $\rho = 0$ ($N = 5$, $S = 100$) confirm that the
+posterior concentrates near zero, verifying that the model does not spuriously
+detect reciprocity when none is present.  This null-signal scenario mirrors
+the brain application result.  A systematic repeated-simulation study
+reporting interval coverage and RMSE across many datasets is warranted and
+left for future work.
 
-\section{Simulation}
-To test the model we fix values for the parameters and sample data.  Let there be two groups.  The first group exhibits large, positive reciprocity, $\rho^(1) = 10$, while the second group exhibits moderate, negative reciprocity, $\rho^(2) = -4$.
+\begin{table}[htb]
+\caption{Posterior summary for key parameters under Scenarios~1 and~2
+  ($N=5$ nodes, $S=100$ replicates per group).  Columns: posterior mean,
+  bias (mean $-$ true), posterior SD, and 95\% credible interval.  All
+  intervals contain the true value.}
+\label{tab:sim}
+\begin{center}
+\begin{tabular}{lrrrrr}
+\toprule
+Parameter & True & Mean & Bias & SD & 95\% CI \\
+\midrule
+\multicolumn{6}{l}{\textit{Scenario 1}} \\
+$\rho^{(1)}$   & $-7.00$ & $-6.68$ & $0.32$ & $0.39$ & $[-7.44,\,-5.95]$ \\
+$\gamma_1^{(1)}$ & $15.00$ & $14.97$ & $-0.03$ & $0.05$ & $[14.87,\,15.08]$ \\
+$\gamma_2^{(1)}$ & $0.50$  & $0.49$  & $-0.01$ & $0.08$ & $[0.33,\,0.65]$ \\
+$\gamma_3^{(1)}$ & $-2.00$ & $-2.07$ & $-0.07$ & $0.08$ & $[-2.22,\,-1.90]$ \\
+$\gamma_4^{(1)}$ & $2.00$  & $1.95$  & $-0.05$ & $0.08$ & $[1.80,\,2.11]$ \\
+$\gamma_5^{(1)}$ & $-1.00$ & $-1.03$ & $-0.03$ & $0.08$ & $[-1.19,\,-0.88]$ \\
+\midrule
+\multicolumn{6}{l}{\textit{Scenario 2}} \\
+$\rho^{(2)}$   & $-3.00$ & $-2.88$ & $0.12$ & $0.30$ & $[-3.48,\,-2.31]$ \\
+$\gamma_1^{(2)}$ & $3.00$  & $2.97$  & $-0.03$ & $0.08$ & $[2.80,\,3.13]$ \\
+$\gamma_2^{(2)}$ & $-12.00$ & $-12.08$ & $-0.08$ & $0.09$ & $[-12.26,\,-11.90]$ \\
+$\gamma_3^{(2)}$ & $0.00$  & $-0.09$ & $-0.09$ & $0.09$ & $[-0.28,\,0.09]$ \\
+$\gamma_4^{(2)}$ & $4.00$  & $3.89$  & $-0.12$ & $0.10$ & $[3.69,\,4.07]$ \\
+$\gamma_5^{(2)}$ & $-3.00$ & $-3.13$ & $-0.13$ & $0.10$ & $[-3.31,\,-2.94]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
 
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.80\linewidth]{sim_rho_1.png}
+\caption{Simulation Scenario~1 ($\rho = -7$, $N=5$, $S=100$).
+  Posterior marginal of $\rho$ (solid line); true value shown as dashed
+  vertical line.  The posterior concentrates tightly near the true value.}
+\label{fig:sim1}
+\end{center}
+\end{figure}
 
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.80\linewidth]{sim_rho_2.png}
+\caption{Simulation Scenario~2 ($\rho = -3$, $N=5$, $S=100$).
+  Posterior marginal of $\rho$.  The wider posterior relative to
+  Scenario~1 reflects the lower signal-to-noise at moderate $|\rho|$.}
+\label{fig:sim2}
+\end{center}
+\end{figure}
 
-Idea:  nuture vs nature - look at brain networks using genetic information and frequency of contact.  Do brain networks operate similarly due to genetic similarities or interaction with others?
-\\ \\
-Idea:  use a vine copula to introduce more dependence parameters
-
-
-
-\section{A Test to Distinguish Between Brain Types}
-Draws from the posterior distribution provide structural parameters for networks describing regulation networks in three distinct groups.  Differences in the posterior distributions of the three groups lead to a method to distinguish between the three regions.  Suppose $A^{s'}$ is a newly estimated network for which there is no group label.  Then in order to predict a group label given measurements on the brain network, sample from  
-\begin{align*}
-p(g_{s'} = g \vert A^{s'}, \rho,\delta,\gamma,X) = \frac{p(A^{s'} \vert  g_{s'} = g, \rho,\delta,\gamma,X)p(g_{s'}=g \vert \theta, X)}{\sum_{g=1}^G p(A^{s'} \vert  g_{s'} = g, \rho,\delta,\gamma,X)p(g_{s'}=g \vert \theta, X) }.
-\end{align*}
-The model analyzed heretofore posits a probability distribution for the edges conditioned on the group labels.  But, more generally, the joint distribution of the group labels and the fMRI-derived edges can be decomposed as  
-\begin{align*}
-p(A^{(s)},g_s \vert \rho,\delta,\gamma,\beta,\theta,X) = p(A^{(s)} \vert g_s,\rho,\delta,\gamma,\beta,X) p(g_s \vert \theta,X)
-\end{align*}
-where
-\begin{align*}
-p(g_s = g \vert \theta,X_s)  =  \frac{\exp\left\{ \theta_g^{\top} X_s \right\}}{\sum_{g=1}^G \exp\left\{ \theta_g^{\top} X_s \right\} }
-\end{align*}
-is the multinomial distribution.  
-\\ \\
-To assess the relative discriminative ability of CGRG model versus the multivariate normal model, we estimate leave out a single observation, estimate both models and then compute the probabilities of each class.  Table \ref{tab:results} compares the performance of CGRG against other models. 
-
-
-\section{Entropy Comparisons}
-Recent theories suggest neural systems move towards lower entropy configurations.  Within the context of regulation networks, a lower entropy brain exhibits a more predictable regulation network.  That is, it is clear which node regulates other nodes.   The Copula Generated Random Graph model estimates terms measuring the overall reciprocity in brain networks.  If regulatory ties are highly reciprocal, then there is greater uncertainty as to which node regulates which.  This is consistent with higher entropy distributions.  This section develops a method to compute entropies for the three populations.  We demonstrate that the brain structures associated with Alzheimer's disease exhibit higher degrees of entropy.  Sample $R$ networks for each $s=1,\ldots,S$ in the population and compute the approximation
-\begin{align*}
--\int_{A} f(A) \ln(f(A)) dA \approx \frac{1}{R}\sum_{r=1}^R p\left(A^{(1_r)},\ldots, A^{(S_r)}\right) \ln p\left(A^{(1_r)},\ldots, A^{(S_r)}\right).
-\end{align*}
-
-\section{Brain Structures Predictive of Future Changes in Disease Status}
 \section{Results}
-\subsection{Copula Generated Random Graph}
-The CGRG model contains highly interpretable parameters making it a good choice to test pre-existing theories of network processes in the brain. Much research (cite here) has demonstrated that the brain is a highly hierarchical system.  The brain achieves tasks in a way that minimizes energy use.  Hence it acts to reduce redundancy.  This finding is corroborated by our model.  As seen in \ref{fig:reciprocity_cgrg}, reciprocity parameters are negative for brains assigned to each of the three classes.  Brains belonging to the normal class are associated with the most negative reciprocity parameter.  This supplies evidence that healthy brains are the most hierarchical in their network structure.  The brains identified with Alzheimer's disease are the least hierarchical in their network structure.  This leads support to the hypothesis that whole brain organization breaks down in the diseased state.  As the theory predicts, the brains of subjects with mild cognitive impairment locate between healthy and diseased brains.
+\label{sec:brain_app}
 
- \begin{figure}[htb]
+\subsection{Reciprocity}
+
+The CGRG model provides a direct test of dyadic dependence via $\rho$.
+Hierarchical (non-reciprocal) organisation implies that each region
+specialises as either a net sender or a net receiver, and would be
+characterised by negative $\rho$ in the Frank copula model
+(Theorem~\ref{thm:tau}).  We test for this structure below.
+
+Figure~\ref{fig:reciprocity_cgrg} shows posterior marginals of $\rho^{(g)}$
+for the three groups.  Posterior means and 95\% credible intervals are
+reported in Table~\ref{tab:rho_summary}.  All three posteriors are tightly
+concentrated around $\rho \approx -3.75$, well below zero, indicating strong
+negative dyadic dependence: participants with a stronger effective connection
+$A_{ij}$ tend to have a weaker reverse connection $A_{ji}$, consistent with a
+hierarchical (non-reciprocal) regulatory structure in the DMN
+(Theorem~\ref{thm:tau}).  The posterior for $\rho$ corresponds to a
+Kendall's $\tau$ of approximately $-0.43$ via
+$\tau(\rho) = 1 - 4\rho^{-1}[1-D_1(\rho)]$, matching the sample Kendall's
+$\tau$ of $-0.37$ to $-0.55$ observed across dyads.
+
+The AD group, with only 12 participants ($n_{\mathrm{AD}} = 72$ dyad
+observations), shows the widest posterior ($[-4.34,\,-2.91]$), as expected
+from the smaller sample, but it is still clearly concentrated below zero.
+All three groups have nearly identical posterior means for $\rho$; the
+posterior probability of the strict ordering
+$\Pr(\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} < \rho^{(\mathrm{AD})}
+\mid \mathrm{data}) = 0.20$, close to the uniform chance level of
+$1/6 \approx 0.17$, indicating that disease state does not substantially
+alter the degree of hierarchical reciprocity.
+
+\begin{table}[htb]
+\caption{Posterior summary of the Frank copula reciprocity parameter
+  $\rho^{(g)}$ for the three diagnostic groups.  Columns: posterior mean,
+  posterior SD, and 95\% credible interval.  The final row reports the
+  posterior probability of the strict ordering across all three groups,
+  computed from the retained MCMC draws.}
+\label{tab:rho_summary}
 \begin{center}
-\includegraphics[scale=.65]{Reciprocity.pdf}
+\begin{tabular}{lrrr}
+\toprule
+Group & Mean & SD & 95\% CI \\
+\midrule
+NL  &  $-3.778$ & $0.294$ & $[-4.379,\;-3.209]$ \\
+MCI &  $-3.769$ & $0.274$ & $[-4.326,\;-3.235]$ \\
+AD  &  $-3.721$ & $0.340$ & $[-4.331,\;-2.939]$ \\
+\midrule
+\multicolumn{4}{l}{$\Pr(\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})}
+  < \rho^{(\mathrm{AD})} \mid \mathrm{data}) = 0.1986$} \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.72\linewidth]{Reciprocity.pdf}
+\caption{Posterior marginals of the Frank copula parameter $\rho^{(g)}$ for
+  the three diagnostic groups (NL: grey, MCI: blue, AD: red).
+  All three posteriors are concentrated around $\rho \approx -3.75$,
+  well below zero, indicating strong negative dyadic dependence (hierarchical
+  regulation structure) in the DMN.  The upper $x$-axis shows the
+  corresponding Kendall's $\tau$ via the Debye function.
+  The AD group (12 participants) shows the widest posterior but is still
+  clearly concentrated below zero.}
 \label{fig:reciprocity_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
-\end{center}
-\end{figure}
-
-
-
-\begin{figure}[htb]
-\begin{center}
-\includegraphics[scale=.65]{receiver_1st.pdf}
-\label{fig:receiver_1st_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
 \end{center}
 \end{figure}
 
 \begin{figure}[htb]
 \begin{center}
-\includegraphics[scale=.65]{receiver_2nd.pdf}
-\label{fig:receiver_2nd_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
+\includegraphics[width=\linewidth]{ppc_kendall_tau.pdf}
+\caption{Posterior predictive check: dyadic Kendall's $\tau$ for the six
+  DMN dyad pairs, by diagnostic group.  Shaded bars show the 95\% posterior
+  predictive interval; vertical ticks show the posterior predictive median;
+  filled circles show the observed sample Kendall's $\tau$.  The observed
+  values fall within or close to the predictive intervals for all dyads,
+  confirming that the fitted Frank copula reproduces the anti-diagonal
+  dependence structure.}
+\label{fig:ppc_tau}
 \end{center}
 \end{figure}
 
 \begin{figure}[htb]
 \begin{center}
-\includegraphics[scale=.65]{receiver_3rd.pdf}
-\label{fig:receiver_3rd_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
+\includegraphics[width=\linewidth]{DyadScatter.pdf}
+\caption{Observed dyad pairs $(u_{ij}, u_{ji})$ in probability-integral-transform
+  (uniform) space after removing marginal structure, pooled across all six
+  dyads and all subjects within each group.  Contour lines show the fitted
+  Frank copula density at the posterior mean $\hat\rho$ for each group.
+  The anti-diagonal concentration of observations---and the close agreement
+  between contours and data---confirms that the model captures the hierarchical
+  (non-reciprocal) structure in the DMN.  All three groups show the same
+  qualitative pattern.}
+\label{fig:dyad_scatter}
+\end{center}
+\end{figure}
+
+\subsection{Node Effects}
+
+Table~\ref{tab:node_effects} summarises the posterior means and 95\%
+credible intervals for the receiver effects $\gamma_j^{(g)}$ and sender
+effects $\delta_i^{(g)}$ across all four DMN nodes and three groups.
+The receiver effect $\gamma_j^{(g)}$ measures the average regulatory input
+received by node $j$ in group $g$; the sender effect $\delta_i^{(g)}$ ($i
+\geq 2$) measures the excess regulatory output of node $i$ relative to the
+mPFC reference ($\delta_1^{(g)} = 0$).  Full posterior coefficient plots for
+receiver and sender effects are provided in Appendix~\ref{sec:appendix_plots}.
+
+Figure~\ref{fig:heatmaps} shows the posterior mean connectivity matrix
+$E[A_{ij}] = \hat\delta_i + \hat\gamma_j$ and the asymmetry matrix
+$E[A_{ij}] - E[A_{ji}]$ for each group.  Figure~\ref{fig:network_diagram}
+summarises the same information as a directed graph: node size encodes the
+receiver effect $\gamma_j$, arrow width encodes $E[A_{ij}]$, and arrow colour
+encodes asymmetry.  LIPL (node 3) and RIPL (node 4)
+have the largest positive receiver effects, consistent with their role as
+integration hubs in the DMN.  The asymmetry matrices and network diagram
+both show that mPFC is the strongest net sender, while PCC,
+LIPL, and RIPL are net receivers.  These patterns are nearly identical across
+the three diagnostic groups.
+
+\begin{table}[htb]
+\caption{Posterior means and 95\% credible intervals for receiver effects
+  $\gamma_j^{(g)}$ and sender effects $\delta_i^{(g)}$ ($i \geq 2$) across
+  the three diagnostic groups.  Node labels: mPFC (node~1), PCC (node~2),
+  LIPL (node~3), RIPL (node~4).}
+\label{tab:node_effects}
+\begin{center}
+\begin{tabular}{llrrr}
+\toprule
+Parameter & Node & NL & MCI & AD \\
+\midrule
+\multicolumn{5}{l}{\textit{Receiver effects $\gamma_j^{(g)}$}} \\
+$\gamma_1$ & mPFC & $0.11\ [0.06,\,0.16]$ & $0.11\ [0.06,\,0.16]$ & $0.11\ [0.06,\,0.18]$ \\
+$\gamma_2$ & PCC  & $0.08\ [0.02,\,0.14]$ & $0.08\ [0.02,\,0.13]$ & $0.08\ [0.02,\,0.14]$ \\
+$\gamma_3$ & LIPL & $0.18\ [0.12,\,0.24]$ & $0.18\ [0.13,\,0.24]$ & $0.18\ [0.12,\,0.25]$ \\
+$\gamma_4$ & RIPL & $0.14\ [0.08,\,0.19]$ & $0.14\ [0.09,\,0.20]$ & $0.15\ [0.09,\,0.22]$ \\
+\midrule
+\multicolumn{5}{l}{\textit{Sender effects $\delta_i^{(g)}$ (relative to mPFC)}} \\
+$\delta_2$ & PCC  & $-0.07\ [-0.14,\,-0.01]$ & $-0.07\ [-0.13,\,-0.00]$ & $-0.06\ [-0.13,\,0.02]$ \\
+$\delta_3$ & LIPL & $-0.06\ [-0.11,\,0.00]$ & $-0.06\ [-0.11,\,0.00]$ & $-0.05\ [-0.11,\,0.02]$ \\
+$\delta_4$ & RIPL & $-0.04\ [-0.11,\,0.02]$ & $-0.04\ [-0.10,\,0.02]$ & $-0.04\ [-0.11,\,0.02]$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{table}
+
+
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=0.72\linewidth]{NetworkDiagram.pdf}
+\caption{Directed-graph summary of posterior mean DMN connectivity
+  (averaged over diagnostic groups; the pattern is nearly identical
+  across NL, MCI, and AD).  Node size is proportional to the receiver
+  effect $\gamma_j$; arrow width is proportional to $E[A_{ij}] =
+  \hat\delta_i + \hat\gamma_j$; arrow colour shows asymmetry
+  $E[A_{ij}] - E[A_{ji}]$ (red = forward direction dominant, blue =
+  reverse direction dominant).  mPFC is the dominant net sender; LIPL
+  and RIPL are the dominant net receivers, consistent with their roles
+  as parietal integration hubs.}
+\label{fig:network_diagram}
 \end{center}
 \end{figure}
 
 \begin{figure}[htb]
 \begin{center}
-\includegraphics[scale=.65]{receiver_4th.pdf}
-\label{fig:receiver_4th_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
+\includegraphics[width=\linewidth]{Heatmaps.pdf}
+\caption{Top row: posterior mean connectivity $E[A_{ij}] = \hat\delta_i + \hat\gamma_j$
+  for each ordered pair of DMN nodes, by diagnostic group.
+  Bottom row: asymmetry $E[A_{ij}] - E[A_{ji}]$ (red = node $i$ sends more to
+  $j$ than $j$ sends to $i$; blue = reverse).  LIPL and RIPL are the
+  strongest net receivers; mPFC is the dominant net sender across all groups.
+  The pattern is nearly identical across NL, MCI, and AD.}
+\label{fig:heatmaps}
 \end{center}
 \end{figure}
+
+\subsection{Predictive Validation}
+
+Figure~\ref{fig:copula_gain} assesses how much the Frank copula improves
+predictive fit relative to an independence baseline ($\rho = 0$, identical
+marginals).  For each participant $s$ in group $g$ we compute the average
+copula log-density across the six DMN dyads,
+\[
+\mathrm{gain}_s
+  \;=\; \frac{1}{6}\sum_{i<j}
+        \log c_{\hat\rho^{(g_s)}}(u_{ij}^{(s)},\, u_{ji}^{(s)}),
+\]
+where $(u_{ij}^{(s)}, u_{ji}^{(s)})$ are the probability-integral-transformed
+edges under posterior mean parameters.  Under the independence copula
+$\log c_0 = 0$, so $\mathrm{gain}_s > 0$ means the copula model assigns
+higher density to the observed pair than independence does.  Because
+$\hat\rho \approx -3.75$ and the data show anti-diagonal structure
+($u_{ij}$ high $\Leftrightarrow$ $u_{ji}$ low), the Frank copula
+concentrates mass precisely in the anti-diagonal region occupied by the
+observations, yielding consistently positive gains across all 112
+participants and all three groups.
 
 \begin{figure}[htb]
 \begin{center}
-\includegraphics[scale=.65]{sender_2nd.pdf}
-\label{fig:sender_2nd_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
+\includegraphics[width=0.62\linewidth]{CopulaGain.pdf}
+\caption{Copula log-density gain per dyad over the independence model
+  ($\rho = 0$) for each participant, by diagnostic group.
+  Positive values indicate that the fitted Frank copula assigns higher
+  density to the observed $(A_{ij}, A_{ji})$ pair than independence.
+  All 112 participants show positive gains; medians (horizontal bars)
+  are near 0.35 nats per dyad.  The dashed line marks the independence
+  baseline.}
+\label{fig:copula_gain}
 \end{center}
 \end{figure}
-
-\begin{figure}[htb]
-\begin{center}
-\includegraphics[scale=.65]{sender_3rd.pdf}
-\label{fig:sender_3rd_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
-\end{center}
-\end{figure}
-
-\begin{figure}[htb]
-\begin{center}
-\includegraphics[scale=.65]{sender_4th.pdf}
-\label{fig:sender_4th_cgrg}
-%\caption{Reciprocity Parameters for the Three Groups}
-\end{center}
-\end{figure}
-
-
-
-
 
 %A quick comparison between social networks and brain networks helps determine modeling choices.  In social networks:
 %\begin{itemize}
@@ -403,9 +1095,139 @@ The CGRG model contains highly interpretable parameters making it a good choice 
 %\rho \sim F(\cdot)
 %\end{align*}
 
+\section{Discussion}
+\label{sec:discuss}
+
+This paper has developed a dyadic Frank-copula model for directed real-valued
+networks, combining an additive sender-receiver mean structure with a single
+margin-invariant reciprocity parameter $\rho$.  Section~\ref{sec:theory}
+derives that $\rho$ admits a closed-form interpretation via Kendall's $\tau$,
+decomposes the within-dyad entropy, is identifiable for $N \geq 3$, and is
+$\sqrt{S}$-consistently estimable in a simplified parametric benchmark.
+
+The brain connectivity application reveals a strong and consistent signal.
+Posterior estimates of $\rho$ are concentrated around $-3.75$ for all three
+diagnostic groups, with 95\% credible intervals entirely below zero.  A
+Kendall's $\tau$ of approximately $-0.43$ implies that, within each dyad,
+participants with stronger forward connectivity $A_{ij}$ systematically have
+weaker reverse connectivity $A_{ji}$.  This is precisely the hierarchical
+(non-reciprocal) regulation signature that the model is designed to detect.
+The three groups share nearly the same $\rho$: the posterior probability of
+the strict ordering $\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} <
+\rho^{(\mathrm{AD})}$ is $0.20$, close to chance, indicating that the
+degree of hierarchical organisation does not change substantially across
+disease states in this cohort.  The lack of a group difference may reflect
+genuine invariance of the hierarchical DMN structure across Alzheimer's
+progression, or insufficient statistical power to resolve a small
+between-group shift in $\rho$ with these sample sizes (particularly
+$S_{\mathrm{AD}} = 12$).  Node-level receiver and sender effects
+in Table~\ref{tab:node_effects} and Figure~\ref{fig:heatmaps} show positive receiver
+effects across all groups, with LIPL and RIPL showing the largest positive
+values, consistent with the known role of parietal regions as network hubs
+\citep{huang2022}.  Posterior predictive checks (Figure~\ref{fig:ppc_tau})
+confirm that the model reproduces the observed dyadic Kendall's $\tau$
+values, and the copula gain analysis (Figure~\ref{fig:copula_gain}) shows
+that the Frank copula model assigns substantially higher density to the
+observed dyad pairs than the independence baseline for all 112 participants.
+
+Several extensions are worth pursuing.  First, a proper repeated-simulation study
+reporting interval coverage and RMSE over many datasets would replace the
+single-dataset illustration of Section~\ref{sec:sim}.  Fourth, the dyadic
+partition can be replaced by larger blocks via vine copula constructions
+\citep{czado2025}.  Fifth, longitudinal brain networks require a dynamic
+version; the spectral DCM framework of \citet{nie2020} is one starting point.
+Sixth, a joint asymptotics result would require additional profile likelihood
+analysis.  Seventh, extending identifiability to the full hierarchical model
+is of theoretical interest.
+
+\paragraph{External validation datasets.}
+The current brain application is limited to 112 participants, with only 12 in
+the AD group.  Several publicly available resting-state fMRI datasets offer
+promising validation targets.  For disease-relevant replication, the
+Alzheimer's Disease Neuroimaging Initiative (ADNI) and the Open Access Series
+of Imaging Studies (OASIS-3) both include larger AD and MCI cohorts.  For
+method stress-testing, the Human Connectome Project (HCP) Young Adult dataset
+provides 1,206 healthy participants with high-quality effective connectivity
+derivable from preprocessed timeseries.  The COBRE dataset (72 schizophrenia
+patients, 75 controls) offers a convenient case-control replication in a
+different clinical domain.  Validation on one of these datasets would
+substantially strengthen confidence in the model's generalizability.
+
+\paragraph{Relationship to deep learning methods.}
+Graph neural networks (GNNs) and related deep learning approaches have been
+applied to larger neuroimaging datasets for diagnostic classification
+\citep{huang2022}.  The CGRG is not a competitor to GNNs for prediction tasks
+but targets a different goal: estimating an interpretable, low-dimensional
+dependence parameter for hypothesis testing in a replicated-network setting.
+With $N = 4$ nodes and $S = 112$ participants, the data are far below the
+scale at which GNN approaches are effective; a neural model would overfit and
+obscure the parameter of scientific interest.  GNN-based approaches are
+appropriate when the goal is classification with large node sets and many
+subjects, not when the goal is estimating a bivariate dependence structure
+interpretable via Kendall's $\tau$.  Future work combining subject-level
+graph encoders with copula-based dependence parameters for larger ROI-level
+networks remains an interesting direction.
+
+\appendix
+
+\section{Entropy Decomposition}
+\label{sec:appendix_entropy}
+
+\begin{theorem}[Entropy Decomposition]
+\label{thm:entropy}
+Let $h_C(\rho) = -\int_0^1\!\int_0^1 c_\rho(u,v)\log c_\rho(u,v)\,du\,dv$
+denote the \emph{copula entropy} of the Frank copula, with $h_C(0) = 0$.
+Then: (a) $h_C(\rho) \leq 0$ with equality iff $\rho = 0$, with
+$h_C(\rho) = -D_{\mathrm{KL}}(c_\rho \| c_0)$; (b) $h_C(\rho)$ is
+decreasing in $|\rho|$; (c) $H(A_{ij}, A_{ji}) = H(A_{ij}) + H(A_{ji}) +
+h_C(\rho)$; and (d) $I(A_{ij};\,A_{ji}) = -h_C(\rho) \geq 0$.
+\end{theorem}
+
+The proof is standard: part~(a) follows from KL non-negativity, parts~(b)--(c)
+from the concordance ordering of the Frank family and the probability integral
+transform, and part~(d) from the definition of mutual information.
+
+\begin{corollary}[Group Entropy Differences Under Equal Marginal Precision]
+\label{cor:group_entropy}
+Under the CGRG model with $\lambda^{(g)} = \lambda$ for all $g$,
+$H_{\mathrm{net}}^{(g)} - H_{\mathrm{net}}^{(g')}
+  = \frac{N(N-1)}{2}[h_C(\rho^{(g)}) - h_C(\rho^{(g')})]$.
+The copula term isolates the contribution of dyadic dependence when marginal
+precision is shared across groups.
+\end{corollary}
+
+In the brain application the posterior estimates $\rho^{(g)} \approx -3.75$
+yield $h_C(\rho^{(g)}) < 0$, meaning dyadic dependence reduces joint entropy
+relative to independence.  The group-specific precision differences
+$\lambda^{(g)}$ contribute additionally to between-group entropy variation,
+and the two contributions can be separated via this decomposition.
+
+\section{Posterior Coefficient Plots for Node Effects}
+\label{sec:appendix_plots}
+
+Figure~\ref{fig:node_effects_forest} displays posterior means and 95\%
+credible intervals for all receiver effects $\gamma_j^{(g)}$ and sender
+effects $\delta_i^{(g)}$ ($i \geq 2$, relative to the mPFC reference) across
+the three diagnostic groups (NL: filled circles, MCI: squares, AD: triangles).
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=\linewidth]{NodeEffects.pdf}
+\caption{Forest plot of posterior means and 95\% credible intervals for
+  receiver effects $\gamma_j^{(g)}$ (left panel) and sender effects
+  $\delta_i^{(g)}$ (right panel, relative to mPFC) for NL (dark grey circles),
+  MCI (blue squares), and AD (red triangles).  LIPL and RIPL show the largest
+  positive receiver effects; PCC and LIPL show small negative sender effects
+  relative to the mPFC reference across all groups.  Credible intervals
+  overlap substantially across groups, consistent with the finding that
+  node-level effects are stable across diagnostic categories.}
+\label{fig:node_effects_forest}
+\end{center}
+\end{figure}
+
 \begin{thebibliography}{}
 \input{cgrg_bnet_bib}
-\end{thebibliography}{}
+\end{thebibliography}
 
 
 

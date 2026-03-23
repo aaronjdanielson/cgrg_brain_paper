@@ -643,8 +643,8 @@ altered effective connectivity in Alzheimer's disease
 \citep{dmn2016, huang2022, monash2024}.
 Participants are classified as Alzheimer's disease (AD, $S_{\mathrm{AD}} = 12$),
 mild cognitive impairment (MCI, $S_{\mathrm{MCI}} = 63$), or cognitively normal
-(NL, $S_{\mathrm{NL}} = 37$), with group labels $g_s \in \{\mathrm{AD},
-\mathrm{MCI}, \mathrm{NL}\}$.
+(NL, $S_{\mathrm{NL}} = 37$) based on ADNI diagnostic criteria \citep{ma2019},
+with group labels $g_s \in \{\mathrm{AD}, \mathrm{MCI}, \mathrm{NL}\}$.
 Throughout this section $N = 4$ denotes the number of DMN regions (nodes) and
 $S = 112$ denotes the total number of participants (replicated networks).
 
@@ -1201,6 +1201,25 @@ yield $h_C(\rho^{(g)}) < 0$, meaning dyadic dependence reduces joint entropy
 relative to independence.  The group-specific precision differences
 $\lambda^{(g)}$ contribute additionally to between-group entropy variation,
 and the two contributions can be separated via this decomposition.
+Figure~\ref{fig:entropy_decomp} illustrates both components from the posterior.
+
+\begin{figure}[htb]
+\begin{center}
+\includegraphics[width=\linewidth]{EntropyDecomp.pdf}
+\end{center}
+\caption{Entropy decomposition from the brain application posterior.
+  \textit{Left}: posterior distribution of mutual information
+  $I(A_{ij};\,A_{ji}) = -h_C(\rho^{(g)})$ for each diagnostic group.
+  All three groups concentrate near $0.15$ nats, confirming that
+  within-dyad information is stable across disease stage.
+  \textit{Right}: per-dyad joint entropy $H(A_{ij}, A_{ji})$ decomposed into
+  the marginal independence baseline $2H(A_{ij})$ (light bar) and the copula
+  reduction $h_C(\rho^{(g)})$ (darker cap); error bars show 95\% posterior
+  credible intervals on the total.  The AD group shows higher total entropy,
+  driven by lower marginal precision $\lambda^{(\mathrm{AD})}$ rather than
+  differences in $\rho$.}
+\label{fig:entropy_decomp}
+\end{figure}
 
 \section{Posterior Coefficient Plots for Node Effects}
 \label{sec:appendix_plots}

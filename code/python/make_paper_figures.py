@@ -1032,6 +1032,121 @@ def _rho_to_tau(rho):
     return 1.0 - 4.0 / rho * (1.0 - D1)
 
 
+def _copula_entropy_numeric(rho, n=200):
+    """h_C(rho) = -∫∫ c_rho log c_rho du dv  (numerical, via density grid)."""
+    if abs(rho) < 1e-6:
+        return 0.0
+    _, _, Dg = frank_density_grid(rho, n)
+    safe = np.clip(Dg, 1e-300, None)
+    return float(-np.mean(Dg * np.log(safe)))
+
+
+def fig_entropy_decomp(draws, paper):
+    """
+    Two-panel entropy decomposition figure for Appendix C.
+
+    Left  — Posterior KDE of mutual information I(A_ij; A_ji) = -h_C(rho^(g))
+             for each group.  All groups concentrated at the same value,
+             confirming disease does not alter within-dyad information.
+
+    Right — Per-dyad joint entropy decomposition:
+             H(A_ij, A_ji) = 2 H_margin(lambda^(g))  +  h_C(rho^(g)).
+             Shown as posterior-mean bars split into the marginal (independence)
+             baseline and the copula reduction, with 95% CI brackets.
+    """
+    from scipy.interpolate import interp1d
+
+    rho_draws = draws[:, 1:4]    # (S, 3)  NL / MCI / AD
+    lam_draws = draws[:, 36:39]  # (S, 3)
+
+    # Precompute h_C on a fine rho grid then interpolate (fast)
+    rho_flat  = rho_draws.ravel()
+    r_lo, r_hi = rho_flat.min() - 0.2, rho_flat.max() + 0.2
+    rho_grid  = np.linspace(r_lo, r_hi, 80)
+    hC_grid   = np.array([_copula_entropy_numeric(r) for r in rho_grid])
+    hC_fn     = interp1d(rho_grid, hC_grid, kind="cubic",
+                         fill_value="extrapolate")
+
+    hC  = hC_fn(rho_draws)                          # (S, 3), ≤ 0
+    MI  = -hC                                        # mutual information, ≥ 0
+    # Marginal differential entropy of Normal(mu, precision=lambda)
+    H_marg = 0.5 * (np.log(2 * np.pi) + 1.0 - np.log(lam_draws))  # (S, 3)
+    # Per-dyad joint entropy
+    H_dyad = 2.0 * H_marg + hC                      # (S, 3)
+
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.6))
+
+    # ── Left: posterior KDE of mutual information ────────────────────────────
+    ax = axes[0]
+    for gi, g in enumerate(GROUP_NAMES):
+        x, y = kde_curve(MI[:, gi])
+        if x is None:
+            continue
+        ax.plot(x, y, color=C[g], lw=LW, ls=LS[g], label=g)
+        pm = float(np.mean(MI[:, gi]))
+        ax.axvline(pm, color=C[g], lw=0.8, ls=":", alpha=0.55)
+
+    ax.axvline(0, color="black", lw=0.7, ls="--", alpha=0.35,
+               label="independence")
+    ax.set_xlabel(r"Mutual information $I(A_{ij};\,A_{ji})$ (nats)", fontsize=9)
+    ax.set_ylabel("Posterior density", fontsize=9)
+    ax.set_title(r"Copula mutual information $-h_C(\rho^{(g)})$", fontsize=10)
+    ax.legend(frameon=False, fontsize=8)
+    ax.yaxis.set_major_formatter(mticker.FormatStrFormatter("%.1f"))
+
+    # ── Right: per-dyad entropy decomposition ────────────────────────────────
+    ax = axes[1]
+    x_pos = np.arange(3)
+    width = 0.45
+
+    baseline_mean = (2.0 * H_marg).mean(axis=0)    # independence baseline
+    hC_mean       = hC.mean(axis=0)                 # copula reduction (< 0)
+    hC_lo         = np.percentile(hC, 2.5,  axis=0)
+    hC_hi         = np.percentile(hC, 97.5, axis=0)
+    dyad_lo       = np.percentile(H_dyad, 2.5,  axis=0)
+    dyad_hi       = np.percentile(H_dyad, 97.5, axis=0)
+    dyad_mean     = H_dyad.mean(axis=0)
+
+    for gi, g in enumerate(GROUP_NAMES):
+        col = C[g]
+        # Independence baseline (light, hatched)
+        ax.bar(x_pos[gi], baseline_mean[gi], width,
+               color=col, alpha=0.25, edgecolor=col, linewidth=0.8,
+               label="Marginal $2H(A_{ij})$" if gi == 0 else "")
+        # Copula reduction stacked on top (the bar goes down into negative)
+        ax.bar(x_pos[gi], hC_mean[gi], width,
+               bottom=baseline_mean[gi], color=col, alpha=0.75,
+               edgecolor=col, linewidth=0.8,
+               label=r"Copula $h_C(\rho)$" if gi == 0 else "")
+        # 95% CI on total
+        ax.errorbar(x_pos[gi], dyad_mean[gi],
+                    yerr=[[dyad_mean[gi] - dyad_lo[gi]],
+                          [dyad_hi[gi]   - dyad_mean[gi]]],
+                    fmt="none", color="black", capsize=3, lw=1.0, zorder=5)
+
+    ax.axhline(0, color="black", lw=0.5, ls="-", alpha=0.3)
+    ax.set_xticks(x_pos)
+    ax.set_xticklabels(GROUP_NAMES, fontsize=9)
+    ax.set_ylabel(r"$H(A_{ij}, A_{ji})$ (nats)", fontsize=9)
+    ax.set_title("Per-dyad joint entropy decomposition", fontsize=10)
+
+    # Legend: one entry per bar type
+    from matplotlib.patches import Patch
+    handles = [
+        Patch(facecolor="grey", alpha=0.25, edgecolor="grey",
+              label=r"Marginal $2H(A_{ij})$"),
+        Patch(facecolor="grey", alpha=0.75, edgecolor="grey",
+              label=r"Copula $h_C(\rho)$ (reduction)"),
+    ]
+    ax.legend(handles=handles, frameon=False, fontsize=7.5, loc="lower right")
+
+    fig.tight_layout()
+    out = paper / "EntropyDecomp.pdf"
+    fig.savefig(out, bbox_inches="tight")
+    plt.close(fig)
+    print(f"Saved {out}")
+
+
 def print_copula_comparison(draws, data):
     """
     For each subject compute mean log copula density per dyad under three models:
@@ -1218,6 +1333,7 @@ def main():
     fig_heatmaps(draws, paper)
 
     fig_network_diagram(draws, paper)
+    fig_entropy_decomp(draws, paper)
 
     if data is not None:
         fig_ppc_tau(draws, data, paper, n_ppc=args.n_ppc, thin=1)

@@ -26,8 +26,13 @@
 
 
 \begin{document}
-\title{Block-Separable Copula Generated Random Graphs for Directed Networks\\}
-\author{Jiguo Cao and Aaron J. Danielson\\}
+\title{Block-Separable Copula Generated Random Graphs for Directed Networks}
+\author{Aaron J. Danielson\thanks{Department of Computer Science,
+  University of Texas at Austin, Austin, TX, USA.
+  \texttt{aaron.danielson@austin.utexas.edu}}
+\and
+Jiguo Cao\thanks{Department of Statistics and Actuarial Science,
+  Simon Fraser University, Burnaby, BC, Canada.}}
 \date{\today}
 \maketitle
 
@@ -38,8 +43,8 @@ We propose a model for directed, real-valued networks in which the dependence
 between the two directed edges within each dyad is captured by a one-parameter
 Frank copula selected on the basis of empirical dependence structure and
 predictive likelihood, while the marginal mean of each edge is decomposed into
-additive sender and receiver effects.  The model is closed-form, tractable under componentwise
-Metropolis--Hastings sampling, and designed for replicated networks (multiple
+additive sender and receiver effects.  The model is closed-form, tractable under No-U-Turn Sampling (NUTS) via NumPyro and JAX, and designed
+for replicated networks (multiple
 networks observed on a common node set, each belonging to one of $G$ comparison
 groups).
 
@@ -137,16 +142,31 @@ Our contributions are:
   under fixed $N$ and growing replicates $S$.  (Appendix~\ref{sec:appendix_entropy}
   provides an entropy decomposition that further clarifies the role of $\rho$
   but is not needed for the empirical results.)
-\item An application to $N = 4$ default mode network connectivity matrices
-  from 112 fMRI participants across AD, MCI, and NL groups
-  (Section~\ref{sec:brain_app}).  The model recovers strongly negative
+\item A proof-of-concept application to $N = 4$ default mode network
+  connectivity matrices from 112 fMRI participants across AD, MCI, and NL
+  groups (Section~\ref{sec:brain_app}).  The model recovers strongly negative
   reciprocity ($\rho \approx -3.75$, Kendall's $\tau \approx -0.43$) for
   all three groups with 95\% credible intervals entirely below zero,
-  indicating a hierarchical (non-reciprocal) regulatory structure in the
-  DMN that is consistent across disease states.  Posterior predictive checks
-  confirm that the model reproduces the observed dyadic Kendall's $\tau$
-  pattern.
+  providing evidence of stable hierarchical DMN organisation across disease
+  states in this cohort.  Posterior predictive checks confirm that the model
+  reproduces the observed dyadic Kendall's $\tau$ pattern.
 \end{enumerate}
+
+Several important limitations of the current framework should be noted from
+the outset.  First, the model assumes \emph{dyadic independence}: the joint
+distribution of $A_{ij}$ and $A_{ji}$ is modelled through a bivariate copula,
+but dependence among different dyads---such as transitivity or triadic
+closure---is excluded.  This is a deliberate simplification that ensures
+tractability and identifiability in the small-$N$ replicated setting but
+rules out higher-order network phenomena.  Second, the theoretical results
+in Section~\ref{sec:theory} are derived under a simplified model with known
+marginal parameters; the full hierarchical model lacks corresponding asymptotic
+theory, and extending identifiability and consistency to the hierarchical
+setting remains an open problem.  Third, the brain application with 112
+participants (only $S_{\mathrm{AD}} = 12$ in the AD group) should be
+understood as a proof-of-concept illustration rather than definitive
+neuroscience validation; stronger conclusions about disease-related differences
+would require larger, externally validated cohorts.
 
 Section~\ref{sec:cgrg} introduces the dyad-separable framework.
 Section~\ref{sec:realvalued} specifies the Gaussian-marginal Frank-copula
@@ -422,8 +442,9 @@ We adopt a Bayesian framework with the following hierarchical prior:
 \end{align}
 The hyper-means $(\rho_0, \delta_0, \gamma_0)$ pool information across
 groups and nodes respectively; the hyper-variances control the degree of
-shrinkage.  Posterior samples are drawn via a componentwise
-Metropolis--Hastings algorithm, cycling through all parameters in sequence.
+shrinkage.  Posterior samples are drawn via the No-U-Turn Sampler
+\citep[NUTS;][]{hoffman2014} as implemented in NumPyro \citep{phan2019} with
+JAX \citep{jax2018} for hardware-accelerated automatic differentiation.
 
 \paragraph{MAP versus full posterior sampling.}
 Maximum a posteriori (MAP) estimation with a Laplace approximation is a
@@ -719,26 +740,24 @@ three groups; the hyper-standard-deviations $(\sigma_\rho, \sigma_\delta,
 
 \subsection{Posterior Computation}
 
-Posterior samples are drawn via a componentwise random-walk
-Metropolis--Hastings algorithm \citep{nie2020}, cycling through
-$\rho_0$; $\rho^{(g)}$ for $g = 1,2,3$; $\delta_0$;
-$\delta_i^{(g)}$ for $i = 2,3,4$ and $g = 1,2,3$; $\gamma_0$;
-$\gamma_j^{(g)}$ for $j = 1,\ldots,4$ and $g = 1,2,3$; $\lambda^{(g)}$
-for $g = 1,2,3$; and $\sigma_\rho, \sigma_\delta, \sigma_\gamma$.
-Symmetric uniform proposals are used throughout.  Burn-in of 10,000
-iterations is discarded and every 100th draw of the subsequent 100,000
-iterations is retained, yielding 1,000 approximately independent posterior
-draws.  Step sizes were tuned during a pilot run to achieve acceptance rates
-in the 20--40\% range for each block.  The posterior probability of the
+Posterior samples are drawn via the No-U-Turn Sampler
+\citep[NUTS;][]{hoffman2014} as implemented in NumPyro \citep{phan2019} with
+JAX \citep{jax2018} for hardware-accelerated automatic differentiation.
+We run 1,000 warmup iterations followed by 3,000 post-warmup draws per chain,
+with two independent chains initialised from dispersed starting values,
+sampling all 42 scalar parameters jointly.  The posterior probability of the
 strict group ordering,
 $\Pr(\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} < \rho^{(\mathrm{AD})}
 \mid \mathrm{data}) = 0.20$, is computed directly by counting the fraction of
 retained draws satisfying the inequality; this single number summarises
 the confidence in the ordering claim without requiring any additional
-analytical approximation.  Convergence is assessed by running two
-independent chains from dispersed starting values and verifying that
-$\hat{R} < 1.05$ and the effective sample size exceeds 200 for each
-scalar parameter of interest.
+analytical approximation.  Convergence is assessed via the Gelman--Rubin
+$\hat{R}$ statistic and the bulk effective sample size (ESS): $\hat{R} < 1.05$
+and ESS $> 400$ for all $\rho^{(g)}$ and $\lambda^{(g)}$ parameters.
+The hierarchical variance parameters $\sigma_\delta$ and $\sigma_\gamma$
+exhibit lower ESS ($\approx 50$--$100$) consistent with near-boundary
+concentration in the half-normal prior, but do not affect the primary
+inferential targets.
 
 \section{Relationship to the Multivariate Normal}
 \label{sec:compare}
@@ -1102,16 +1121,19 @@ This paper has developed a dyadic Frank-copula model for directed real-valued
 networks, combining an additive sender-receiver mean structure with a single
 margin-invariant reciprocity parameter $\rho$.  Section~\ref{sec:theory}
 derives that $\rho$ admits a closed-form interpretation via Kendall's $\tau$,
-decomposes the within-dyad entropy, is identifiable for $N \geq 3$, and is
-$\sqrt{S}$-consistently estimable in a simplified parametric benchmark.
+is identifiable for $N \geq 3$, and is $\sqrt{S}$-consistently estimable
+in a simplified parametric benchmark; the entropy decomposition is deferred
+to Appendix~\ref{sec:appendix_entropy}.
 
-The brain connectivity application reveals a strong and consistent signal.
+The brain connectivity application reveals a strong and consistent signal
+in this cohort.
 Posterior estimates of $\rho$ are concentrated around $-3.75$ for all three
 diagnostic groups, with 95\% credible intervals entirely below zero.  A
 Kendall's $\tau$ of approximately $-0.43$ implies that, within each dyad,
 participants with stronger forward connectivity $A_{ij}$ systematically have
-weaker reverse connectivity $A_{ji}$.  This is precisely the hierarchical
-(non-reciprocal) regulation signature that the model is designed to detect.
+weaker reverse connectivity $A_{ji}$.  This pattern is consistent with a
+hierarchical (non-reciprocal) regulatory signature in the DMN under this
+modelling framework.
 The three groups share nearly the same $\rho$: the posterior probability of
 the strict ordering $\rho^{(\mathrm{NL})} < \rho^{(\mathrm{MCI})} <
 \rho^{(\mathrm{AD})}$ is $0.20$, close to chance, indicating that the
@@ -1167,6 +1189,29 @@ subjects, not when the goal is estimating a bivariate dependence structure
 interpretable via Kendall's $\tau$.  Future work combining subject-level
 graph encoders with copula-based dependence parameters for larger ROI-level
 networks remains an interesting direction.
+
+\section*{Declarations}
+
+\paragraph{Conflict of interest.}
+The authors declare no conflict of interest.
+
+\paragraph{Data availability.}
+The effective connectivity matrices analysed in this study were derived by
+\citet{nie2020} from resting-state fMRI data collected under the Alzheimer's
+Disease Neuroimaging Initiative (ADNI) \citep{ma2019}.  The processed
+connectivity matrices used here are available from the corresponding author
+upon reasonable request.
+
+\paragraph{Code availability.}
+All code required to reproduce the figures, tables, and posterior inference
+in this paper is available at
+\url{https://github.com/aaronjdanielson/cgrg\_brain\_paper}.
+
+\paragraph{Author contributions.}
+Both authors contributed to the conceptualisation, methodology, and writing
+of the manuscript.  A.J.D.\ led the computational implementation, produced
+all figures, and is the corresponding author.  J.C.\ led the theoretical
+development and supervised the project.
 
 \appendix
 
